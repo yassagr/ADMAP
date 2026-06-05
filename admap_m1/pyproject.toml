@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "admap-m1"
+version = "3.0.0"
+description = "ADMAP M1 — IOC Extractor microservice (Static analysis only)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "httpx>=0.27.0",
+    "python-multipart>=0.0.9",
+    "structlog>=24.1.0",
+    "pefile>=2023.2.7",
+    "ppdeep>=20200505",
+    "stix2>=3.0.1",
+    "tenacity>=8.3.0",
+    "click>=8.1.7",
+    "python-magic-bin>=0.4.14; sys_platform == 'win32'",
+    "python-magic>=0.4.27; sys_platform != 'win32'",
+]
+
+[project.optional-dependencies]
+full = [
+    "oletools>=0.60.1",
+    "py7zr>=0.21.0",
+    "pyelftools>=0.31",
+    "pymisp>=2.4.170",
+]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
+    "httpx>=0.27.0",
+]
+
+[project.scripts]
+admap-m1 = "admap_m1.cli.main:cli"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--tb=short -q --cov=admap_m1 --cov-report=term-missing"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
