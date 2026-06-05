@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 
 from admap_m1.api.dependencies import get_queue
 from admap_m1.core.config import get_settings
@@ -22,11 +22,12 @@ router = APIRouter(prefix="/analyze", tags=["Analysis"])
 
 @router.post("")
 async def submit_analysis(
+    request: Request,
     file: Annotated[UploadFile, File(...)],
     enable_vt: Annotated[bool, Form()] = False,
     enable_deobfuscation: Annotated[bool, Form()] = True,
-    queue: JobQueue = Depends(get_queue),
 ):
+    queue = get_queue(request)
     """Soumet un fichier binaire pour extraction d'IOCs.
 
     L'analyse est traitée en arrière-plan.

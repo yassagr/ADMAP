@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from admap_m1.api.dependencies import get_queue
@@ -35,9 +35,10 @@ EXPORTERS = {
 async def export_job_result(
     job_id: UUID,
     format: str = Query(..., description="Format d'export (stix21, openioc, misp, cytomic)"),
-    queue: JobQueue = Depends(get_queue)
+    request: Request = None,
 ):
     """Exporte les IOCs d'une analyse terminée vers un format CTI standard."""
+    queue = get_queue(request)
     fmt = format.lower()
     if fmt not in EXPORTERS:
         raise HTTPException(
@@ -57,13 +58,16 @@ async def export_job_result(
         if not result:
             raise HTTPException(status_code=404, detail="Résultat expiré ou introuvable")
 
-        exporter = EXPORTERS[fmt]
-        exported_data = exporter.export(result)
+        exported_content: str = EXPORTERS[fmt].export(result)
         
         # Le content-type dépend du format
         media_type = "application/xml" if fmt == "openioc" else "application/json"
+        if fmt == "cytomic":
+            media_type = "text/csv"
+        if fmt in ("stix21", "stix"):
+            media_type = "application/stix+json"
         
-        return PlainTextResponse(content=exported_data, media_type=media_type)
+        return PlainTextResponse(content=exported_content, media_type=media_type)
         
     except JobNotFoundError:
         raise HTTPException(status_code=404, detail="Job introuvable")

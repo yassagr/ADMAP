@@ -11,10 +11,10 @@ from __future__ import annotations
 import sys
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from admap_m1.api.dependencies import get_queue
+from admap_m1.pipeline.job_queue import JobQueue
 from admap_m1.api.routers import analyze, export, jobs
 from admap_m1.core.config import get_settings
 from admap_m1.core.logging import get_logger, setup_logging
@@ -31,8 +31,9 @@ async def lifespan(app: FastAPI):
     logger.info("admap_m1_api_starting", port=settings.API_PORT, workers=settings.API_WORKERS)
 
     # Démarrage de la JobQueue
-    queue = get_queue()
+    queue = JobQueue()
     queue.start_workers(num_workers=settings.API_WORKERS)
+    app.state.job_queue = queue
     
     yield  # L'application tourne ici
     
@@ -66,9 +67,33 @@ app.include_router(export.router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["System"])
-async def health_check():
+async def health_check() -> dict[str, str]:
     """Vérifie l'état de l'API M1."""
-    return {"status": "ok", "service": "ADMAP M1"}
+    return {"status": "ok", "version": "3.0.0"}
+
+
+@app.get("/ready", tags=["System"])
+async def readiness_check(request: Request) -> dict[str, object]:
+    """Readiness probe pour Kubernetes/Docker."""
+    from admap_m1.extractors.elf_extractor import PYELFTOOLS_AVAILABLE
+    from admap_m1.extractors.vba_extractor import OLETOOLS_AVAILABLE
+    try:
+        from py7zr import SevenZipFile  # noqa: F401
+        py7zr_available = True
+    except ImportError:
+        py7zr_available = False
+
+    queue = request.app.state.job_queue
+    queue_size = queue._queue.qsize() if hasattr(queue, '_queue') else 0
+
+    return {
+        "status": "ok",
+        "version": "3.0.0",
+        "queue_size": queue_size,
+        "elf_parsing": PYELFTOOLS_AVAILABLE,
+        "office_vba": OLETOOLS_AVAILABLE,
+        "archive_7z": py7zr_available,
+    }
 
 
 if __name__ == "__main__":

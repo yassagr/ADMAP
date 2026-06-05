@@ -88,7 +88,7 @@ class AnalysisPipeline:
         self,
         file_bytes: bytes,
         file_path: Path,
-        progress_callback: Callable[[int, str], None] | None = None
+        progress_callback: Callable[[int, str], None] | None = None,
     ) -> IOCBundle:
         """Exécute le pipeline complet sur un fichier.
 
@@ -106,31 +106,35 @@ class AnalysisPipeline:
         start_time = time.perf_counter()
         stats = AnalysisStats()
 
-        def _report(progress: int, stage: str):
+        def _report(progress: int, stage: str) -> None:
             if progress_callback:
                 progress_callback(progress, stage)
+            self._logger.info("pipeline_stage", stage=stage, progress=progress)
 
-        _report(5, "Étape 1: Parsing structuré")
+        _report(5, "Étape 1: Identification du fichier")
         metadata = self._run_stage1_parsing(file_bytes, file_path)
 
-        _report(15, "Étape 2: Extraction récursive")
+        _report(15, "Étape 2: Pré-traitement et archives")
         files_to_process = self._run_stage2_archives(file_bytes, file_path, metadata)
 
         _report(30, "Étape 3: Désobfuscation")
         if self.options.enable_deobfuscation:
             self._run_stage3_deobfuscation(files_to_process, stats)
 
-        _report(45, "Étape 4: Extraction des IOCs bruts")
+        _report(55, "Étape 4: Extraction des IOCs")
         raw_iocs = self._run_stage4_extraction(files_to_process, metadata)
 
-        _report(65, "Étape 5: Dédoublonnage & Scoring")
+        _report(70, "Étape 5: Filtrage et déduplication")
+        # Le scoring est dans l'étape 6 de la nomenclature
+        
+        _report(85, "Étape 6: Scoring et contextualisation")
         scored_iocs = self._run_stage5_scoring(raw_iocs, metadata, stats)
 
-        _report(80, "Étape 6: Enrichissement (VT)")
+        _report(90, "Étape 6b: Enrichissement VT (si activé)")
         if self.options.enable_vt_enrichment:
             await self._run_stage6_enrichment(scored_iocs, stats)
 
-        _report(95, "Étape 7: Defanging et Finalisation")
+        _report(100, "Étape 7: Construction du bundle final")
         final_iocs = self._run_stage7_defanging(scored_iocs)
 
         stats.total_iocs = len(final_iocs)
@@ -144,8 +148,6 @@ class AnalysisPipeline:
             iocs=final_iocs,
             analysis_stats=stats,
         )
-
-        _report(100, "Analyse terminée")
         self._logger.info(
             "pipeline_completed",
             filename=file_path.name,

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from admap_m1.models.ioc import IOCConfidenceLevel, IOCType, RawIOC
+from admap_m1.models.ioc import IOCConfidenceLevel, IOCType, RawIOC, ExtractionContext
 
 
 class IOCScorer:
@@ -47,16 +47,48 @@ class IOCScorer:
     }
 
     @staticmethod
-    def score(ioc: RawIOC, context_flags: list[str]) -> tuple[int, IOCConfidenceLevel, list[str]]:
+    def score(
+        ioc: RawIOC,
+        context: list[str] | ExtractionContext,
+    ) -> tuple[int, IOCConfidenceLevel, list[str]]:
         """Calcule le score final de l'IOC et détermine le niveau de confiance.
 
-        Args:
-            ioc: Le RawIOC à évaluer.
-            context_flags: Les tags calculés par le ContextAnalyzer.
-
-        Returns:
-            Tuple (score_final, niveau_de_confiance, historique_scoring).
+        Accepte soit une liste de flags (str) soit un ExtractionContext.
         """
+        from admap_m1.heuristics.context_analyzer import ContextAnalyzer
+        from admap_m1.models.ioc import FileMetadata, FileHashes, ExtractionContext
+
+        if isinstance(context, list):
+            flags = context
+        else:
+            # ExtractionContext → construire un FileMetadata minimal pour analyze()
+            dummy_meta = FileMetadata(
+                filename="", filesize=0, filetype="unknown",
+                magic_bytes="", entropy=0.0,
+                hashes=FileHashes(
+                    md5="d41d8cd98f00b204e9800998ecf8427e",
+                    sha1="da39a3ee5e6b4b0d3255bfef95601890afd80709",
+                    sha256="e3b0c44298fc1c149afbf4c8996fb924"
+                          "27ae41e4649b934ca495991b7852b855",
+                ),
+                pe_info=None,
+            )
+            flags = ContextAnalyzer.analyze(ioc, dummy_meta)
+            # Ajouter les flags depuis le contexte directement
+            if context.vba_autoexec_detected:
+                flags.append("in_autoexec_macro")
+            if context.vba_shell_detected:
+                flags.append("vba_shell")
+            if ioc.in_decoded_layer:
+                flags.append("in_decoded_layer")
+
+        return IOCScorer._compute_score(ioc, flags)
+
+    @staticmethod
+    def _compute_score(
+        ioc: RawIOC, flags: list[str]
+    ) -> tuple[int, IOCConfidenceLevel, list[str]]:
+        """Calcul effectif du score — logique interne."""
         reasons: list[str] = []
         
         # 1. Score de base
@@ -78,7 +110,7 @@ class IOCScorer:
             return 0, IOCConfidenceLevel.NOISE, reasons
 
         # 2. Application des modificateurs
-        for flag in context_flags:
+        for flag in flags:
             if flag in IOCScorer.CONTEXT_MODIFIERS:
                 mod = IOCScorer.CONTEXT_MODIFIERS[flag]
                 score += mod

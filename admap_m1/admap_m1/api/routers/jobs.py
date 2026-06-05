@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from admap_m1.api.dependencies import get_queue
 from admap_m1.core.exceptions import JobNotFoundError
@@ -20,8 +20,9 @@ router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
 
 @router.get("/{job_id}")
-async def get_job_status(job_id: UUID, queue: JobQueue = Depends(get_queue)):
+async def get_job_status(job_id: UUID, request: Request):
     """Récupère l'état d'avancement d'un job d'analyse."""
+    queue = get_queue(request)
     try:
         job = queue.get_job_status(job_id)
         return {
@@ -37,8 +38,9 @@ async def get_job_status(job_id: UUID, queue: JobQueue = Depends(get_queue)):
 
 
 @router.get("/{job_id}/result")
-async def get_job_result(job_id: UUID, queue: JobQueue = Depends(get_queue)):
+async def get_job_result(job_id: UUID, request: Request):
     """Récupère le bundle IOC complet (format JSON interne) pour un job terminé."""
+    queue = get_queue(request)
     try:
         job = queue.get_job_status(job_id)
         if job.status != JobStatus.COMPLETED:
@@ -57,8 +59,9 @@ async def get_job_result(job_id: UUID, queue: JobQueue = Depends(get_queue)):
 
 
 @router.delete("/{job_id}")
-async def cancel_job(job_id: UUID, queue: JobQueue = Depends(get_queue)):
+async def cancel_job(job_id: UUID, request: Request):
     """Annule un job en cours d'exécution ou en attente."""
+    queue = get_queue(request)
     if queue.cancel_job(job_id):
         return {"message": "Job annulé avec succès"}
     raise HTTPException(status_code=404, detail="Job introuvable ou déjà terminé")

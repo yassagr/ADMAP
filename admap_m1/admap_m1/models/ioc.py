@@ -66,6 +66,17 @@ class VTResult(BaseModel):
     error: str | None = None
 
 
+class ExtractionContext(BaseModel):
+    """Contexte d'extraction spécifique pour un extracteur (ex: VBA, PE)."""
+
+    vba_autoexec_detected: bool = False
+    vba_shell_detected: bool = False
+    is_pe_import: bool = False
+    in_high_entropy_section: bool = False
+    near_suspicious_api: bool = False
+    near_execution_verb: bool = False
+
+
 class RawIOC(BaseModel):
     """IOC brut retourné par un extracteur, avant scoring et filtrage."""
 

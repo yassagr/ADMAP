@@ -9,6 +9,7 @@ backoff exponentiel et cache local.
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 from collections import defaultdict
@@ -242,5 +243,3 @@ class VirusTotalEnricher(BaseEnricher):
                 json.dump({k: v.model_dump() for k, v in self._cache.items()}, f)
         except Exception as e:
             self._logger.warning("vt_cache_save_failed", error=str(e))
-
-import base64
