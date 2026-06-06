@@ -122,9 +122,10 @@ def analyze(
         exporter = exporters_map.get(fmt)
         if not exporter:
             continue
-        result = exporter.export(bundle)
-        out_file = output_dir / result.filename
-        out_file.write_text(result.content, encoding="utf-8")
+        ext_map = {"stix": ".stix.json", "openioc": ".ioc.xml", "misp": ".misp.json", "cytomic": ".cytomic.json"}
+        content: str = exporter.export(bundle)
+        out_file = output_dir / f"{file_path.stem}{ext_map.get(fmt, f'.{fmt}')}"
+        out_file.write_text(content, encoding="utf-8")
         if not quiet:
             click.echo(f"Export {fmt.upper()} -> {out_file}", err=True)
 
@@ -172,9 +173,10 @@ def export(
         out_dir = Path(output) if output else Path(".")
         out_dir.mkdir(parents=True, exist_ok=True)
         for _fmt, exporter in exporters_map.items():
-            result = exporter.export(bundle)
-            out_file = out_dir / result.filename
-            out_file.write_text(result.content, encoding="utf-8")
+            ext_map = {"stix": ".stix.json", "openioc": ".ioc.xml", "misp": ".misp.json", "cytomic": ".cytomic.json"}
+            content: str = exporter.export(bundle)
+            out_file = out_dir / f"{bundle_json.stem}{ext_map.get(_fmt, f'.{_fmt}')}"
+            out_file.write_text(content, encoding="utf-8")
             click.echo(str(out_file))
         sys.exit(0)
 
@@ -192,9 +194,10 @@ def export(
         click.echo(f"ERROR: Unknown format {fmt}", err=True)
         sys.exit(1)
 
-    result = exporter.export(bundle)
-    out_path = Path(output) if output else Path(result.filename)
-    out_path.write_text(result.content, encoding="utf-8")
+    ext_map = {"stix": ".stix.json", "openioc": ".ioc.xml", "misp": ".misp.json", "cytomic": ".cytomic.json"}
+    content: str = exporter.export(bundle)
+    out_path = Path(output) if output else Path(f"{bundle_json.stem}{ext_map.get(fmt, f'.{fmt}')}")
+    out_path.write_text(content, encoding="utf-8")
     click.echo(str(out_path))
     sys.exit(0)
 
