@@ -28,7 +28,9 @@ from admap_m1.models.job import AnalysisOptions
 from admap_m1.pipeline.orchestrator import AnalysisPipeline
 
 
-def _build_exporters_map() -> dict[str, object]:
+from admap_m1.exporters.base import BaseExporter
+
+def _build_exporters_map() -> dict[str, BaseExporter]:
     return {
         "stix":    STIXExporter(),
         "openioc": OpenIOCExporter(),
@@ -182,22 +184,22 @@ def export(
 
     if fmt == "misp" and misp_url and misp_key:
         try:
-            push_result = MISPExporter().push_to_misp(bundle, misp_url, misp_key)
+            push_result = MISPExporter().push_to_misp(bundle, str(misp_url), str(misp_key))  # type: ignore[attr-defined]
             click.echo(json.dumps(push_result, indent=2))
         except ADMAPM1Error as e:
             click.echo(f"ERROR [{e.code}]: {e.message}", err=True)
             sys.exit(1)
         sys.exit(0)
 
-    exporter = exporters_map.get(fmt)
-    if not exporter:
+    exporter_opt = exporters_map.get(fmt)
+    if not exporter_opt:
         click.echo(f"ERROR: Unknown format {fmt}", err=True)
         sys.exit(1)
 
-    ext_map = {"stix": ".stix.json", "openioc": ".ioc.xml", "misp": ".misp.json", "cytomic": ".cytomic.json"}
-    content: str = exporter.export(bundle)
-    out_path = Path(output) if output else Path(f"{bundle_json.stem}{ext_map.get(fmt, f'.{fmt}')}")
-    out_path.write_text(content, encoding="utf-8")
+    ext_map_direct = {"stix": ".stix.json", "openioc": ".ioc.xml", "misp": ".misp.json", "cytomic": ".cytomic.json"}
+    exported_content = exporter_opt.export(bundle)
+    out_path = Path(output) if output else Path(f"{bundle_json.stem}{ext_map_direct.get(fmt, f'.{fmt}')}")
+    out_path.write_text(exported_content, encoding="utf-8")
     click.echo(str(out_path))
     sys.exit(0)
 

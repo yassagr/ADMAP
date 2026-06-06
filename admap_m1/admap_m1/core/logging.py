@@ -60,7 +60,7 @@ def setup_logging(log_level: str = "INFO", log_format: str = "json") -> None:
         log_level: Niveau de log (``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``).
         log_format: Format de sortie (``json`` ou ``console``).
     """
-    shared_processors: list[structlog.types.Processor] = [
+    shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
@@ -114,4 +114,4 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     Returns:
         Instance BoundLogger avec le nom du module en contexte.
     """
-    return structlog.get_logger(name)
+    return structlog.get_logger(name)  # type: ignore[no-any-return]
