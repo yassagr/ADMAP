@@ -1,10 +1,11 @@
 """
 Module   : admap_m2.core.config
 Version  : 1.0.0
-Dépend   : [pydantic_settings]
+Dépend   : [pydantic_settings, functools]
 """
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,7 +20,7 @@ class Settings(BaseSettings):
 
     # API
     API_HOST: str = "0.0.0.0"
-    API_PORT: int = 8001           # Port différent de M1 (8000)
+    API_PORT: int = 8001
     API_WORKERS: int = 1
     ALLOWED_ORIGINS: list[str] = ["*"]
     DEBUG: bool = False
@@ -36,16 +37,17 @@ class Settings(BaseSettings):
     MAX_QUEUE_SIZE: int = 50
 
     # Détecteurs — seuils
+    MIN_CONFIDENCE_THRESHOLD: int = 20
     BEACONING_MIN_OCCURRENCES: int = 5
-    BEACONING_JITTER_TOLERANCE: float = 0.15  # 15% de variation tolérée
+    BEACONING_JITTER_TOLERANCE: float = 0.15
     DGA_ENTROPY_THRESHOLD: float = 3.5
     DGA_MIN_DOMAIN_LENGTH: int = 12
     DNS_TUNNEL_QUERY_LENGTH: int = 50
     DNS_TUNNEL_MIN_QUERIES: int = 10
-    PORT_SCAN_THRESHOLD: int = 20   # ports distincts en moins de 60s
+    PORT_SCAN_THRESHOLD: int = 20
 
     # M1 intégration
-    M1_BUNDLE_DEFAULT_PATH: str = ""  # Chemin optionnel vers IOCBundle M1
+    M1_BUNDLE_DEFAULT_PATH: str = ""
 
     # GeoIP (optionnel)
     GEOIP_DB_PATH: str = ""
@@ -55,5 +57,7 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = "json"
 
 
+@lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    """Retourne le singleton Settings (caché via lru_cache)."""
     return Settings()

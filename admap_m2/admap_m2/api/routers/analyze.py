@@ -1,17 +1,24 @@
 """
 Module   : admap_m2.api.routers.analyze
 Version  : 1.0.0
-Dépend   : [fastapi, admap_m2.models.job, admap_m2.pipeline.job_queue]
+Dépend   : [asyncio, fastapi, admap_m2.api.dependencies, admap_m2.models.job,
+            admap_m2.pipeline.job_queue, admap_m2.core.config]
 """
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
-from admap_m2.api.dependencies import get_queue, get_app_settings
+from admap_m2.api.dependencies import get_app_settings, get_queue
 from admap_m2.core.config import Settings
 from admap_m2.models.job import AnalysisOptions
 from admap_m2.pipeline.job_queue import JobQueue
-from admap_m2.parsers.pcap_parser import SCAPY_AVAILABLE
+
+try:
+    from admap_m2.parsers.pcap_parser import SCAPY_AVAILABLE
+except Exception:
+    SCAPY_AVAILABLE = False
 
 try:
     from admap_m1.models.ioc import IOCBundle  # noqa: F401
@@ -24,7 +31,7 @@ router = APIRouter(prefix="/analyze", tags=["analyze"])
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
 async def analyze_pcap(
-    file: UploadFile = File(..., description="Fichier PCAP à analyser (.pcap, .pcapng, .cap)"),
+    file: UploadFile = File(..., description="Fichier PCAP à analyser"),
     enable_beaconing: bool = Form(True),
     enable_dga: bool = Form(True),
     enable_dns_tunnel: bool = Form(True),
@@ -42,20 +49,19 @@ async def analyze_pcap(
 
     Returns:
         202 avec job_id, status, status_url.
-
-    Raises:
-        HTTPException 400: Fichier manquant ou illisible.
-        HTTPException 413: Fichier trop volumineux.
-        HTTPException 422: Extension non supportée.
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename missing")
 
-    ext = "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    ext = (
+        "." + file.filename.rsplit(".", 1)[-1].lower()
+        if "." in file.filename
+        else ""
+    )
     if ext not in settings.ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=422,
-            detail=f"Unsupported file extension: {ext}. Allowed: {settings.ALLOWED_EXTENSIONS}",
+            detail=f"Unsupported extension: {ext}. Allowed: {settings.ALLOWED_EXTENSIONS}",
         )
 
     try:
@@ -67,7 +73,7 @@ async def analyze_pcap(
     if len(file_bytes) > max_bytes:
         raise HTTPException(
             status_code=413,
-            detail=f"File too large. Max size is {settings.MAX_PCAP_SIZE_MB} MB",
+            detail=f"File too large. Max: {settings.MAX_PCAP_SIZE_MB}MB",
         )
 
     options = AnalysisOptions(
@@ -82,11 +88,17 @@ async def analyze_pcap(
         min_confidence_threshold=min_confidence,
     )
 
-    job = queue.submit_job(
-        filename=file.filename,
-        file_bytes=file_bytes,
-        options=options,
-    )
+    try:
+        job = queue.submit_job(
+            filename=file.filename,
+            file_bytes=file_bytes,
+            options=options,
+        )
+    except asyncio.QueueFull:
+        raise HTTPException(
+            status_code=503,
+            detail="Analysis queue is full. Please try again later.",
+        )
 
     return {
         "job_id": str(job.job_id),
@@ -97,12 +109,7 @@ async def analyze_pcap(
 
 @router.get("/capabilities", tags=["analyze"])
 async def get_capabilities() -> dict:
-    """
-    Retourne les capacités des détecteurs disponibles.
-
-    Returns:
-        Dictionnaire des détecteurs et intégrations disponibles.
-    """
+    """Retourne les capacités et détecteurs disponibles du module M2."""
     return {
         "detectors": [
             "beaconing", "dga", "dns_tunnel", "http_c2",

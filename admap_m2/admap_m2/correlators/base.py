@@ -1,7 +1,8 @@
 """
 Module   : admap_m2.correlators.base
 Version  : 1.0.0
-Dépend   : [abc, admap_m2.models.flow, admap_m2.models.alert]
+Dépend   : [abc, admap_m2.core.config, admap_m2.core.logging,
+            admap_m2.models.alert, admap_m2.models.flow]
 """
 from __future__ import annotations
 
@@ -16,8 +17,8 @@ from admap_m2.models.flow import NetworkFlow
 class BaseCorrelator(ABC):
     """
     Interface pour les corrélateurs.
-    Un corrélateur prend les flux (et/ou les alertes existantes)
-    et les enrichit, ou génère de nouvelles alertes par corrélation.
+    Un corrélateur génère de nouvelles alertes par corrélation
+    à partir des flux et/ou alertes existantes.
     """
 
     def __init__(self, settings: Settings) -> None:
@@ -27,11 +28,19 @@ class BaseCorrelator(ABC):
     @property
     @abstractmethod
     def correlator_name(self) -> str:
-        """Identifiant du corrélateur."""
+        """Identifiant unique du corrélateur."""
 
     @abstractmethod
-    def correlate(self, flows: list[NetworkFlow], alerts: list[C2Alert]) -> list[C2Alert]:
+    def correlate(
+        self, flows: list[NetworkFlow], alerts: list[C2Alert]
+    ) -> list[C2Alert]:
         """
-        Effectue la corrélation et retourne une liste de NOUVELLES alertes,
-        ou modifie la liste des alertes existantes.
+        Effectue la corrélation et retourne de nouvelles alertes.
+
+        Args:
+            flows: Liste des flux reconstruits.
+            alerts: Alertes déjà générées par les détecteurs.
+
+        Returns:
+            Liste de nouvelles C2Alert (peut être vide).
         """

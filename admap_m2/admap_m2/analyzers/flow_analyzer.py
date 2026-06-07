@@ -1,7 +1,8 @@
 """
 Module   : admap_m2.analyzers.flow_analyzer
 Version  : 1.0.0
-Dépend   : [admap_m2.models.flow, admap_m2.models.alert]
+Dépend   : [admap_m2.core.config, admap_m2.core.logging,
+            admap_m2.models.alert, admap_m2.models.flow]
 """
 from __future__ import annotations
 
@@ -14,19 +15,36 @@ from admap_m2.models.flow import NetworkFlow
 class FlowAnalyzer:
     """
     Orchestrateur de l'analyse flux par flux.
-    Passe chaque flux aux détecteurs et corrélateurs configurés.
+    Exécute séquentiellement les détecteurs puis les corrélateurs.
+    Le filtrage par seuil de confiance est délégué à l'appelant.
     """
 
-    def __init__(self, settings: Settings, detectors: list, correlators: list):
+    def __init__(
+        self,
+        settings: Settings,
+        detectors: list,
+        correlators: list,
+    ) -> None:
         self._settings = settings
         self._logger = get_logger("analyzers.flow_analyzer")
         self._detectors = detectors
         self._correlators = correlators
 
     def analyze(self, flows: list[NetworkFlow]) -> list[C2Alert]:
-        alerts = []
-        
-        # 1. Détecteurs
+        """
+        Exécute tous les détecteurs et corrélateurs sur les flux.
+
+        Retourne toutes les alertes sans filtrage par seuil —
+        le filtrage est à la charge de l'appelant (orchestrateur).
+
+        Args:
+            flows: Liste des flux réseau reconstruits.
+
+        Returns:
+            Liste brute de toutes les alertes générées.
+        """
+        alerts: list[C2Alert] = []
+
         for detector in self._detectors:
             try:
                 new_alerts = detector.detect(flows)
@@ -34,16 +52,15 @@ class FlowAnalyzer:
                 self._logger.debug(
                     "detector_run_success",
                     detector=detector.detector_name,
-                    alerts_found=len(new_alerts)
+                    alerts_found=len(new_alerts),
                 )
             except Exception as e:
                 self._logger.error(
                     "detector_failed",
                     detector=detector.detector_name,
-                    error=str(e)
+                    error=str(e),
                 )
 
-        # 2. Corrélateurs
         for correlator in self._correlators:
             try:
                 correlated_alerts = correlator.correlate(flows, alerts)
@@ -51,13 +68,13 @@ class FlowAnalyzer:
                 self._logger.debug(
                     "correlator_run_success",
                     correlator=correlator.correlator_name,
-                    alerts_found=len(correlated_alerts)
+                    alerts_found=len(correlated_alerts),
                 )
             except Exception as e:
                 self._logger.error(
                     "correlator_failed",
                     correlator=correlator.correlator_name,
-                    error=str(e)
+                    error=str(e),
                 )
 
-        return alerts  # Pas de filtrage ici, filtrage dans l'orchestrateur
+        return alerts

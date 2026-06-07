@@ -105,17 +105,44 @@ class BeaconingDetector(BaseDetector):
         self, occurrences: int, cv: float, mean_interval: float
     ) -> int:
         """
-        Calcule un score de confiance de 0 à 100.
+        Calcule le score de confiance de 0 à 100.
+
+        Args:
+            occurrences: Nombre de connexions répétées.
+            cv: Coefficient de variation (std/mean).
+            mean_interval: Intervalle moyen en secondes.
+
+        Returns:
+            Score entre 0 et 100.
         """
-        score = 40
-        if occurrences >= 10:
-            score += 20
+        score = 30
+
+        # Bonus répétitions
         if occurrences >= 50:
+            score += 30
+        elif occurrences >= 20:
             score += 20
-            
-        if cv <= 0.05:
-            score += 20
-        elif cv <= 0.10:
+        elif occurrences >= 10:
             score += 10
-            
+        elif occurrences >= 5:
+            score += 5
+
+        # Bonus CV faible (beaconing précis)
+        if cv < 0.01:
+            score += 30
+        elif cv < 0.05:
+            score += 20
+        elif cv < 0.10:
+            score += 10
+        elif cv < 0.15:
+            score += 5
+
+        # Bonus intervalle typique C2
+        if 30 <= mean_interval <= 600:
+            score += 20
+        elif 600 < mean_interval <= 3600:
+            score += 10
+        elif mean_interval > 3600:
+            score += 5
+
         return min(100, score)

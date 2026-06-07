@@ -1,9 +1,12 @@
 """
 Module   : admap_m2.pipeline.orchestrator
 Version  : 1.0.0
-Dépend   : [admap_m2.core.config, admap_m2.models.alert, admap_m2.models.job,
-            admap_m2.parsers, admap_m2.detectors, admap_m2.correlators,
-            admap_m2.scorers, admap_m2.analyzers]
+Dépend   : [asyncio, time, collections, typing,
+            admap_m2.core.config, admap_m2.core.exceptions, admap_m2.core.logging,
+            admap_m2.correlators.geo_correlator, admap_m2.correlators.ioc_correlator,
+            admap_m2.detectors.*, admap_m2.models.alert, admap_m2.models.job,
+            admap_m2.parsers.flow_builder, admap_m2.parsers.pcap_parser,
+            admap_m2.scorers.c2_scorer]
 """
 from __future__ import annotations
 
@@ -12,7 +15,7 @@ import time
 from collections import Counter
 from typing import Callable
 
-from admap_m2.core.config import get_settings
+from admap_m2.core.config import Settings, get_settings
 from admap_m2.core.exceptions import PCAPEmptyError, PCAPParsingError, PCAPTooLargeError
 from admap_m2.core.logging import get_logger
 from admap_m2.correlators.geo_correlator import GeoCorrelator
@@ -37,19 +40,31 @@ class AnalysisPipeline:
     1. VALIDATION      (5%)  : Validation PCAP + SHA256
     2. PARSING         (20%) : Extraction des paquets
     3. FLOW_BUILD      (40%) : Reconstruction des flux réseau
-    4. DETECTION       (65%) : Exécution des détecteurs
+    4. DETECTION       (65%) : Exécution des détecteurs avec timeout
     5. CORRELATION     (80%) : Corrélation IOC M1 + agrégation scores
     6. BUNDLE          (100%): Construction AlertBundle final
     """
 
-    def __init__(self, options: AnalysisOptions | None = None) -> None:
-        self._settings = get_settings()
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        options: AnalysisOptions | None = None,
+    ) -> None:
+        """
+        Initialise le pipeline M2.
+
+        Args:
+            settings: Configuration optionnelle (utilise get_settings() si None).
+            options: Options d'analyse optionnelles.
+        """
+        self._settings = settings if settings is not None else get_settings()
         self.options = options or AnalysisOptions()
         self._logger = get_logger("pipeline.orchestrator")
 
         self.pcap_parser = PCAPParser()
         self.scorer = C2Scorer()
 
+        # Activation conditionnelle des détecteurs selon AnalysisOptions
         self.detectors = []
         if self.options.enable_beaconing:
             self.detectors.append(BeaconingDetector(self._settings))
@@ -79,22 +94,24 @@ class AnalysisPipeline:
         progress_callback: Callable[[int, str], None] | None = None,
     ) -> AlertBundle:
         """
-        Exécute le pipeline M2 complet de manière asynchrone.
+        Exécute le pipeline M2 complet de façon asynchrone.
 
         Args:
             file_bytes: Contenu brut du fichier PCAP.
             filename: Nom du fichier PCAP.
-            progress_callback: Callback (pct: int, stage: str) pour la progression.
+            progress_callback: Callback optionnel (pct: int, stage: str) -> None.
 
         Returns:
-            AlertBundle contenant toutes les alertes détectées.
+            AlertBundle complet.
 
         Raises:
-            PCAPEmptyError: Si le PCAP est vide.
-            PCAPTooLargeError: Si le PCAP dépasse la limite.
-            PCAPParsingError: Si le PCAP est invalide.
+            PCAPEmptyError: PCAP vide.
+            PCAPTooLargeError: PCAP trop grand.
+            PCAPParsingError: PCAP invalide ou illisible.
         """
         start_time = time.perf_counter()
+        # asyncio.get_running_loop() est la méthode correcte depuis Python 3.10+
+        loop = asyncio.get_running_loop()
 
         def _report(pct: int, stage: str) -> None:
             if progress_callback:
@@ -109,16 +126,18 @@ class AnalysisPipeline:
         # ── STAGE 2 : PARSING ────────────────────────────────────────────────
         _report(20, "Parsing des paquets PCAP")
         packets: list[tuple[float, bytes, int]] = []
-        loop = asyncio.get_event_loop()
         try:
             raw_packets = await loop.run_in_executor(
-                None, lambda: list(self.pcap_parser.stream_packets(file_bytes))
+                None,
+                lambda: list(self.pcap_parser.stream_packets(file_bytes)),
             )
             for ts, buf, ltype in raw_packets:
                 packets.append((ts, buf, ltype))
                 if len(packets) >= self.options.max_flows * 10:
                     self._logger.warning("pcap_packet_limit_reached", limit=len(packets))
                     break
+        except (PCAPEmptyError, PCAPTooLargeError, PCAPParsingError):
+            raise
         except Exception as e:
             raise PCAPParsingError(f"Parsing error: {e}", "PCAP_PARSING_ERROR")
 
@@ -143,7 +162,7 @@ class AnalysisPipeline:
         all_alerts = []
         timeout_per_detector = max(
             10.0,
-            self.options.analysis_timeout_seconds / max(1, len(self.detectors))
+            self.options.analysis_timeout_seconds / max(1, len(self.detectors)),
         )
         for detector in self.detectors:
             try:
@@ -160,19 +179,29 @@ class AnalysisPipeline:
             except asyncio.TimeoutError:
                 self._logger.warning("detector_timeout", detector=detector.detector_name)
             except Exception as e:
-                self._logger.error("detector_error", detector=detector.detector_name, error=str(e))
+                self._logger.error(
+                    "detector_error", detector=detector.detector_name, error=str(e)
+                )
 
         # ── STAGE 5 : CORRELATION + SCORING ──────────────────────────────────
         _report(80, "Corrélation IOC M1 + Agrégation scores")
         try:
+            # Corrélation IOC M1
             ioc_alerts = await loop.run_in_executor(
                 None, self.ioc_correlator.correlate, flows, all_alerts
             )
             all_alerts.extend(ioc_alerts)
-            all_alerts = [
-                a for a in all_alerts
-                if a.confidence_score >= self.options.min_confidence_threshold
-            ]
+
+            # Enrichissement géo (ne génère pas d'alertes)
+            await loop.run_in_executor(
+                None, self.geo_correlator.correlate, flows, all_alerts
+            )
+
+            # Filtrage par seuil de confiance
+            threshold = self.options.min_confidence_threshold
+            all_alerts = [a for a in all_alerts if a.confidence_score >= threshold]
+
+            # Agrégation avec décroissance logarithmique
             all_alerts = self.scorer.aggregate_alerts(all_alerts)
         except Exception as e:
             self._logger.error("correlation_error", error=str(e))
@@ -186,7 +215,9 @@ class AnalysisPipeline:
 
         ip_scores: dict[str, int] = {}
         for alert in all_alerts:
-            ip_scores[alert.dst_ip] = max(ip_scores.get(alert.dst_ip, 0), alert.confidence_score)
+            ip_scores[alert.dst_ip] = max(
+                ip_scores.get(alert.dst_ip, 0), alert.confidence_score
+            )
         top_ips = sorted(ip_scores, key=lambda ip: ip_scores[ip], reverse=True)[:10]
 
         bundle = AlertBundle(
@@ -200,7 +231,11 @@ class AnalysisPipeline:
             alerts_by_type=dict(type_counter),
             alerts_by_severity=dict(sev_counter),
             top_suspicious_ips=top_ips,
-            m1_bundle_id=str(self.ioc_correlator.bundle_id) if self.ioc_correlator.bundle_id else None,
+            m1_bundle_id=(
+                str(self.ioc_correlator.bundle_id)
+                if self.ioc_correlator.bundle_id
+                else None
+            ),
             ioc_hits=len([a for a in all_alerts if a.alert_type == AlertType.IOC_MATCH]),
         )
 

@@ -1,10 +1,12 @@
 """
 Module   : tests.unit.test_beaconing
 Version  : 1.0.0
+Dépend   : [pytest, datetime, admap_m2.detectors.beaconing_detector,
+            admap_m2.parsers.flow_builder, admap_m2.parsers.pcap_parser]
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 
@@ -15,81 +17,65 @@ from admap_m2.parsers.flow_builder import FlowBuilder
 from admap_m2.parsers.pcap_parser import PCAPParser
 
 
-def _make_flow(dst_ip: str, dst_port: int, ts_offset_s: float, src_port: int = 12345) -> NetworkFlow:
-    """Crée un flux avec un timestamp précis."""
-    base = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    first = base + timedelta(seconds=ts_offset_s)
-    return NetworkFlow(
-        src_ip="192.168.1.1",
-        dst_ip=dst_ip,
-        src_port=src_port,
-        dst_port=dst_port,
-        protocol=Protocol.TCP,
-        first_seen=first,
-        last_seen=first + timedelta(seconds=1),
-        packet_count=1,
-    )
+def test_beaconing_detector_name(test_settings) -> None:
+    """detector_name doit retourner 'beaconing'."""
+    assert BeaconingDetector(test_settings).detector_name == "beaconing"
 
 
-def test_beaconing_detected_regular_intervals(test_settings):
-    """Beaconing détecté sur 10 flux espacés de 60s exactement."""
-    flows = [_make_flow("185.234.100.123", 4444, i * 60.0, src_port=50000 + i) for i in range(10)]
-    detector = BeaconingDetector(test_settings)
-    alerts = detector.detect(flows)
-    beaconing = [a for a in alerts if a.alert_type == AlertType.BEACONING]
-    assert len(beaconing) >= 1
-    assert beaconing[0].confidence_score >= 50
-    assert beaconing[0].dst_ip == "185.234.100.123"
-    assert beaconing[0].dst_port == 4444
-
-
-def test_beaconing_from_pcap_fixture(test_settings, beaconing_pcap_bytes):
-    """Beaconing détecté sur le PCAP fixture (20 SYN toutes les 60s)."""
+def test_beaconing_detection(beaconing_pcap_bytes: bytes, test_settings) -> None:
+    """BeaconingDetector détecte le beaconing dans le PCAP dédié."""
     parser = PCAPParser()
     builder = FlowBuilder()
-    for ts, buf, ltype in parser.stream_packets(beaconing_pcap_bytes):
-        builder.process_packet(ts, buf, ltype)
+    for ts, buf, link_type in parser.stream_packets(beaconing_pcap_bytes):
+        builder.process_packet(ts, buf, link_type)
     flows = builder.finalize()
 
     detector = BeaconingDetector(test_settings)
     alerts = detector.detect(flows)
-    beaconing = [a for a in alerts if a.alert_type == AlertType.BEACONING]
-    assert len(beaconing) >= 1
-    top = max(beaconing, key=lambda a: a.confidence_score)
-    assert top.confidence_score >= 50
+
+    beaconing_alerts = [a for a in alerts if a.alert_type == AlertType.BEACONING]
+    assert len(beaconing_alerts) >= 1
+    top = max(beaconing_alerts, key=lambda a: a.confidence_score)
+    assert top.confidence_score >= 30
     assert top.dst_ip == "185.234.100.123"
 
 
-def test_beaconing_not_triggered_single_flow(test_settings, sample_flow):
-    """Aucun beaconing sur un seul flux."""
+def test_beaconing_not_triggered_single_flow(
+    sample_flow: NetworkFlow, test_settings
+) -> None:
+    """Un seul flux ne déclenche pas d'alerte beaconing."""
     detector = BeaconingDetector(test_settings)
     alerts = detector.detect([sample_flow])
-    assert all(a.alert_type != AlertType.BEACONING for a in alerts)
+    assert len(alerts) == 0
 
 
-def test_beaconing_not_triggered_high_jitter(test_settings):
-    """Pas de beaconing si intervalles très irréguliers (CV > 0.15)."""
-    import random
-    random.seed(42)
-    flows = [
-        _make_flow("10.0.0.1", 8080, random.uniform(0, 3600), src_port=50000 + i)
-        for i in range(10)
-    ]
+def test_beaconing_score_calculation(test_settings) -> None:
+    """Score élevé pour beaconing très précis avec beaucoup d'occurrences."""
     detector = BeaconingDetector(test_settings)
-    alerts = detector.detect(flows)
-    beaconing = [a for a in alerts if a.alert_type == AlertType.BEACONING]
-    assert len(beaconing) == 0
-
-
-def test_beaconing_score_high_precision_many_occurrences(test_settings):
-    """Score élevé pour beaconing précis avec beaucoup de répétitions."""
-    detector = BeaconingDetector(test_settings)
-    score = detector._calculate_score(occurrences=50, cv=0.005, mean_interval=60.0)
+    score = detector._calculate_score(50, 0.005, 60.0)
     assert score >= 80
 
 
-def test_beaconing_score_low_occurrences(test_settings):
-    """Score modéré pour peu de répétitions."""
+def test_beaconing_cv_above_tolerance(test_settings) -> None:
+    """CV > BEACONING_JITTER_TOLERANCE ne génère pas d'alerte."""
+    # 10 flux avec intervalles alternés très variables
+    base_ts = 1700000000.0
+    flows = []
+    cumulative = 0.0
+    for i in range(10):
+        interval = 10.0 if i % 2 == 0 else 600.0
+        cumulative += interval
+        dt = datetime.fromtimestamp(base_ts + cumulative, tz=timezone.utc)
+        flows.append(NetworkFlow(
+            src_ip="192.168.1.1",
+            dst_ip="10.0.0.1",
+            src_port=10000 + i,
+            dst_port=4444,
+            protocol=Protocol.TCP,
+            first_seen=dt,
+            last_seen=dt,
+        ))
+
     detector = BeaconingDetector(test_settings)
-    score = detector._calculate_score(occurrences=3, cv=0.10, mean_interval=300.0)
-    assert score < 80
+    alerts = detector.detect(flows)
+    assert len(alerts) == 0

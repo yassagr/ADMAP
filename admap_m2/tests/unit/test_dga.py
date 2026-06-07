@@ -1,81 +1,73 @@
 """
 Module   : tests.unit.test_dga
 Version  : 1.0.0
+Dépend   : [pytest, admap_m2.detectors.dga_detector]
 """
 from __future__ import annotations
 
 import pytest
 
 from admap_m2.detectors.dga_detector import DGADetector
-from admap_m2.models.alert import AlertType
-from admap_m2.models.flow import DNSQuery, NetworkFlow, Protocol
-from datetime import datetime, timezone
 
 
-def _make_dns_flow(domain: str) -> NetworkFlow:
-    """Crée un flux DNS minimal avec une requête vers domain."""
-    now = datetime.now(timezone.utc)
-    flow = NetworkFlow(
-        src_ip="192.168.1.1",
-        dst_ip="8.8.8.8",
-        src_port=12345,
-        dst_port=53,
-        protocol=Protocol.DNS,
-        first_seen=now,
-        last_seen=now,
-        packet_count=1,
-    )
-    flow.dns_queries.append(DNSQuery(
-        timestamp=now,
-        query_name=domain,
-        query_type="A",
-    ))
-    return flow
+def test_dga_detector_name(test_settings) -> None:
+    """detector_name doit retourner 'dga'."""
+    assert DGADetector(test_settings).detector_name == "dga"
 
 
-def test_dga_high_entropy_detected(test_settings):
-    """Domaine haute entropie (DGA typique) doit être détecté."""
-    flow = _make_dns_flow("xk3j9mzqpl7wvnbf2r.ru")
+def test_dga_high_entropy_domain(test_settings) -> None:
+    """Domaine à haute entropie est scoré comme DGA."""
     detector = DGADetector(test_settings)
-    alerts = detector.detect([flow])
-    dga_alerts = [a for a in alerts if a.alert_type == AlertType.DGA]
-    assert len(dga_alerts) >= 1
-    assert dga_alerts[0].confidence_score >= 20
+    score, evidence = detector._score_domain("xk3j9mzqpl7wvnbf2r.ru")
+    assert score >= 20
+    assert len(evidence) > 0
 
 
-def test_dga_normal_domain_not_flagged(test_settings):
-    """google.com ne doit pas être détecté comme DGA."""
-    flow = _make_dns_flow("google.com")
+def test_dga_normal_domain_not_flagged(test_settings) -> None:
+    """Un domaine normal (court) retourne score 0."""
     detector = DGADetector(test_settings)
-    alerts = detector.detect([flow])
-    dga_alerts = [a for a in alerts if a.alert_type == AlertType.DGA]
-    assert len(dga_alerts) == 0
+    score, _ = detector._score_domain("google.com")
+    assert score == 0
 
 
-def test_dga_shannon_entropy_constant():
-    """Entropie Shannon = 0 pour chaîne constante."""
-    detector = DGADetector(None)
-    entropy = detector._shannon_entropy("aaaa")
-    assert entropy == 0.0
-
-
-def test_dga_shannon_entropy_uniform():
-    """Entropie Shannon > 2 pour chaîne aléatoire."""
-    detector = DGADetector(None)
-    entropy = detector._shannon_entropy("abcdefghij")
-    assert entropy > 2.5
-
-
-def test_dga_short_domain_not_flagged(test_settings):
-    """Domaine trop court ignoré même si haute entropie."""
-    flow = _make_dns_flow("xy.com")
+def test_dga_vowel_ratio_evidence(test_settings) -> None:
+    """Un label sans voyelles génère une evidence 'vowel'."""
     detector = DGADetector(test_settings)
-    alerts = detector.detect([flow])
-    assert all(a.alert_type != AlertType.DGA for a in alerts)
+    score, evidence = detector._score_domain("bcdfghjklmnpqrstvwxyzbc.xyz")
+    vowel_evidence = [e for e in evidence if "vowel" in e.lower()]
+    assert len(vowel_evidence) > 0
 
 
-def test_dga_no_dns_queries(test_settings, sample_flow):
-    """Aucune alerte si le flux n'a pas de requêtes DNS."""
+def test_dga_shannon_entropy_uniform(test_settings) -> None:
+    """Entropie d'une chaîne uniforme est 0."""
+    assert DGADetector._shannon_entropy("aaaa") == 0.0
+
+
+def test_dga_shannon_entropy_diverse(test_settings) -> None:
+    """Entropie d'une chaîne diversifiée est > 2."""
+    assert DGADetector._shannon_entropy("abcdefghijklmnop") > 2.5
+
+
+def test_dga_suspect_tld(test_settings) -> None:
+    """Un TLD suspect (.xyz) génère une evidence 'TLD'."""
     detector = DGADetector(test_settings)
-    alerts = detector.detect([sample_flow])
-    assert all(a.alert_type != AlertType.DGA for a in alerts)
+    score, evidence = detector._score_domain("xk3j9mzqpl7wvnbf2r.xyz")
+    tld_evidence = [e for e in evidence if "TLD" in e]
+    assert len(tld_evidence) > 0
+
+
+def test_dga_short_domain_ignored(test_settings) -> None:
+    """Domaine trop court (< DGA_MIN_DOMAIN_LENGTH) n'est pas analysé."""
+    detector = DGADetector(test_settings)
+    score, evidence = detector._score_domain("abc.ru")
+    assert score == 0
+    assert evidence == []
+
+
+def test_dga_analyzes_tld_plus_one(test_settings) -> None:
+    """DGA doit analyser le label TLD+1 (parts[-2]), pas parts[0]."""
+    detector = DGADetector(test_settings)
+    # Sous-domaine court 'sub' + domaine long suspect en TLD+1
+    score_sub, _ = detector._score_domain("sub.xk3j9mzqpl7wvnbf2r.com")
+    # Le label analysé est 'xk3j9mzqpl7wvnbf2r' (TLD+1), pas 'sub'
+    assert score_sub >= 10

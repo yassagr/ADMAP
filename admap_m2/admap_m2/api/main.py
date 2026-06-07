@@ -1,7 +1,8 @@
 """
 Module   : admap_m2.api.main
 Version  : 1.0.0
-Dépend   : [fastapi, admap_m2.core.config, admap_m2.pipeline.job_queue]
+Dépend   : [fastapi, admap_m2.core.config, admap_m2.core.logging,
+            admap_m2.pipeline.job_queue]
 """
 from __future__ import annotations
 
@@ -14,7 +15,11 @@ from admap_m2.api.routers import analyze, export, jobs
 from admap_m2.core.config import get_settings
 from admap_m2.core.logging import get_logger, setup_logging
 from admap_m2.pipeline.job_queue import JobQueue
-from admap_m2.parsers.pcap_parser import SCAPY_AVAILABLE
+
+try:
+    from admap_m2.parsers.pcap_parser import SCAPY_AVAILABLE
+except Exception:
+    SCAPY_AVAILABLE = False
 
 try:
     from admap_m1.models.ioc import IOCBundle  # noqa: F401
@@ -31,8 +36,10 @@ async def lifespan(app: FastAPI):
     logger.info("admap_m2_starting", port=settings.API_PORT)
 
     queue = JobQueue()
-    queue.start_workers(num_workers=settings.API_WORKERS)  # synchrone après correction
-    app.state.job_queue = queue  # R6 : attribut exact
+    # start_workers() est sync mais doit être appelé depuis un contexte async
+    # pour que asyncio.create_task() ait accès à la boucle active
+    queue.start_workers(num_workers=settings.API_WORKERS)
+    app.state.job_queue = queue  # R6 : attribut exact 'job_queue'
 
     yield
 
@@ -41,8 +48,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="ADMAP M2 - C2 Detector",
+    title="ADMAP M2 — C2 Detector",
     version="1.0.0",
+    description="Module d'analyse comportementale (C2, DGA, Beaconing) via PCAP.",
     lifespan=lifespan,
 )
 
@@ -55,20 +63,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Les routers sont inclus avec le prefix /api/v1
 app.include_router(analyze.router, prefix="/api/v1")
 app.include_router(jobs.router, prefix="/api/v1")
 app.include_router(export.router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["system"])
-async def health_check() -> dict:
-    """Retourne le statut de santé du service."""
-    return {"status": "ok", "version": "1.0.0"}  # R7 exact
+async def health_check() -> dict[str, str]:
+    """R7 : retourne status + version exactement."""
+    return {"status": "ok", "version": "1.0.0"}
 
 
 @app.get("/ready", tags=["system"])
-async def readiness_check(request: Request) -> dict:
-    """Retourne les capacités et l'état de préparation du service."""
+async def readiness_check(request: Request) -> dict[str, object]:
+    """R8 : retourne capacités du module."""
     queue: JobQueue = request.app.state.job_queue
     return {
         "status": "ok",
@@ -76,4 +85,4 @@ async def readiness_check(request: Request) -> dict:
         "queue_size": queue.queue_size,
         "scapy_available": SCAPY_AVAILABLE,
         "m1_integration": M1_AVAILABLE,
-    }  # R8 exact
+    }
