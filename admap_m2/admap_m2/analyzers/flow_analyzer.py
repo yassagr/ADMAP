@@ -60,8 +60,4 @@ class FlowAnalyzer:
                     error=str(e)
                 )
 
-        # Filtrer par min_confidence_threshold
-        threshold = self._settings.min_confidence_threshold if hasattr(self._settings, "min_confidence_threshold") else 20
-        filtered_alerts = [a for a in alerts if a.confidence_score >= threshold]
-
-        return filtered_alerts
+        return alerts  # Pas de filtrage ici, filtrage dans l'orchestrateur

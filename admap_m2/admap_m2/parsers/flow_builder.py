@@ -136,8 +136,8 @@ class FlowBuilder:
             return (src_ip, dst_ip, src_port, dst_port, proto.value)
         if src_port in self.PORT_PROTOCOLS or src_port < 1024:
             return (dst_ip, src_ip, dst_port, src_port, proto.value)
-        # Normalisation canonique
-        if (src_ip, src_port) < (dst_ip, dst_port):
+        # Si aucun port connu, le port le plus bas est probablement le serveur
+        if src_port > dst_port:
             return (src_ip, dst_ip, src_port, dst_port, proto.value)
         return (dst_ip, src_ip, dst_port, src_port, proto.value)
 
@@ -259,7 +259,7 @@ class FlowBuilder:
 
             dns = dpkt.dns.DNS(dns_payload)
             for question in dns.qd:
-                query_name = question.name.decode('utf-8', errors='replace')
+                query_name = question.name if isinstance(question.name, str) else question.name.decode('utf-8', errors='replace')
                 qtype = question.type
 
                 response_ips: list[str] = []
@@ -288,10 +288,11 @@ class FlowBuilder:
     def _extract_http_tls(
         self, flow: NetworkFlow, payload: bytes, dst_port: int, dt: datetime
     ) -> None:
-        """Extrait requêtes HTTP ou infos TLS selon le port."""
-        if dst_port in (80, 8080) and payload.startswith(b'GET ') or \
-           payload.startswith(b'POST ') or payload.startswith(b'HEAD ') or \
-           payload.startswith(b'PUT ') or payload.startswith(b'DELETE '):
+        """Extrait requêtes HTTP ou infos TLS selon le port et le payload."""
+        http_methods = (b'GET ', b'POST ', b'HEAD ', b'PUT ', b'DELETE ', b'PATCH ')
+        is_http_payload = any(payload.startswith(m) for m in http_methods)
+        
+        if is_http_payload:
             self._parse_http(flow, payload, dt)
         elif dst_port in (443, 8443) or payload[:1] == b'\x16':
             self._parse_tls_hello(flow, payload)

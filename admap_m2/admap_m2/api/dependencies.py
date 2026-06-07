@@ -12,8 +12,18 @@ from admap_m2.pipeline.job_queue import JobQueue
 
 
 def get_app_settings() -> Settings:
+    """Retourne la configuration globale."""
     return get_settings()
 
 
 def get_queue(request: Request) -> JobQueue:
-    return request.app.state.queue
+    """
+    Retourne la JobQueue depuis l'état de l'application.
+
+    Args:
+        request: La requête FastAPI courante.
+
+    Returns:
+        Instance de JobQueue stockée dans app.state.job_queue.
+    """
+    return request.app.state.job_queue  # R6 : attribut exact

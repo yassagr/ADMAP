@@ -1,7 +1,7 @@
 """
 Module   : admap_m2.correlators.geo_correlator
 Version  : 1.0.0
-Dépend   : [admap_m2.correlators.base]
+Dépend   : [admap_m2.correlators.base, geoip2 (optionnel)]
 """
 from __future__ import annotations
 
@@ -18,23 +18,34 @@ except ImportError:
 
 class GeoCorrelator(BaseCorrelator):
     """
-    Enrichissement géographique des IPs (Optionnel).
+    Enrichissement géographique des IPs (optionnel).
+    Ne génère pas de nouvelles alertes — rôle informatif uniquement.
     """
 
     @property
     def correlator_name(self) -> str:
         return "geo_correlator"
 
-    def __init__(self, settings):
+    def __init__(self, settings) -> None:
         super().__init__(settings)
         self.reader = None
         if GEOIP_AVAILABLE and self._settings.GEOIP_DB_PATH:
             try:
                 self.reader = geoip2.database.Reader(self._settings.GEOIP_DB_PATH)
+                self._logger.info("geoip_db_loaded", path=self._settings.GEOIP_DB_PATH)
             except Exception as e:
                 self._logger.warning("geoip_db_load_failed", error=str(e))
 
-    def _get_country(self, ip: str) -> str:
+    def get_country(self, ip: str) -> str:
+        """
+        Retourne le code pays ISO d'une IP.
+
+        Args:
+            ip: Adresse IP à géolocaliser.
+
+        Returns:
+            Code ISO à 2 lettres ou "Unknown".
+        """
         if not self.reader:
             return "Unknown"
         try:
@@ -44,17 +55,15 @@ class GeoCorrelator(BaseCorrelator):
             return "Unknown"
 
     def correlate(self, flows: list[NetworkFlow], alerts: list[C2Alert]) -> list[C2Alert]:
-        if not self.reader:
-            return []
+        """
+        Enrichissement géo — ne retourne aucune nouvelle alerte.
+        C2Alert est frozen=True et ne peut pas être muté.
 
-        # Enrich the alerts directly
-        for alert in alerts:
-            src_country = self._get_country(alert.src_ip)
-            dst_country = self._get_country(alert.dst_ip)
-            
-            # Since Pydantic model is frozen, we must copy to modify or use __setattr__ if we bypass
-            # However, metadata is a mutable dict, so we can modify it directly
-            alert.metadata["src_country"] = src_country
-            alert.metadata["dst_country"] = dst_country
+        Args:
+            flows: Flux réseau.
+            alerts: Alertes existantes.
 
+        Returns:
+            Liste vide (aucune nouvelle alerte créée).
+        """
         return []
