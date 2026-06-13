@@ -56,14 +56,34 @@ class GeoCorrelator(BaseCorrelator):
 
     def correlate(self, flows: list[NetworkFlow], alerts: list[C2Alert]) -> list[C2Alert]:
         """
-        Enrichissement géo — ne retourne aucune nouvelle alerte.
-        C2Alert est frozen=True et ne peut pas être muté.
+        Enrichissement géo informatif — journalise le pays source et
+        destination de chaque alerte si une base GeoIP est chargée.
+
+        Ne retourne JAMAIS de nouvelle alerte : C2Alert est frozen=True
+        et ne peut pas être muté. L'enrichissement est uniquement
+        journalisé via structlog (exploitable par le SIEM/dashboard en
+        aval, qui peut recouper alert_id ↔ pays dans les logs).
 
         Args:
-            flows: Flux réseau.
-            alerts: Alertes existantes.
+            flows: Flux réseau (non utilisés directement — signature
+                imposée par BaseCorrelator).
+            alerts: Alertes existantes à enrichir (lecture seule).
 
         Returns:
             Liste vide (aucune nouvelle alerte créée).
         """
+        if not self.reader:
+            return []
+
+        for alert in alerts:
+            self._logger.info(
+                "geo_enrichment",
+                alert_id=str(alert.id),
+                alert_type=alert.alert_type.value,
+                src_ip=alert.src_ip,
+                src_country=self.get_country(alert.src_ip),
+                dst_ip=alert.dst_ip,
+                dst_country=self.get_country(alert.dst_ip),
+            )
+
         return []

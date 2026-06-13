@@ -1,7 +1,8 @@
 """
 Module   : admap_m2.detectors.base
 Version  : 1.0.0
-Dépend   : [abc, admap_m2.models.flow, admap_m2.models.alert]
+Dépend   : [abc, admap_m2.core.config, admap_m2.core.logging,
+            admap_m2.core.scoring, admap_m2.models.alert, admap_m2.models.flow]
 """
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ from abc import ABC, abstractmethod
 
 from admap_m2.core.config import Settings
 from admap_m2.core.logging import get_logger
+from admap_m2.core.scoring import score_to_severity
 from admap_m2.models.alert import AlertSeverity, AlertType, C2Alert
 from admap_m2.models.flow import NetworkFlow
 
@@ -71,8 +73,16 @@ class BaseDetector(ABC):
 
     @staticmethod
     def _score_to_severity(score: int) -> AlertSeverity:
-        if score >= 80: return AlertSeverity.CRITICAL
-        if score >= 60: return AlertSeverity.HIGH
-        if score >= 40: return AlertSeverity.MEDIUM
-        if score >= 20: return AlertSeverity.LOW
-        return AlertSeverity.INFO
+        """
+        Convertit un score entier en niveau de sévérité.
+
+        Délègue à admap_m2.core.scoring.score_to_severity (mapping canonique
+        partagé entre BaseDetector, C2Scorer et IOCCorrelator).
+
+        Args:
+            score: Score de 0 à 100.
+
+        Returns:
+            AlertSeverity correspondant.
+        """
+        return score_to_severity(score)

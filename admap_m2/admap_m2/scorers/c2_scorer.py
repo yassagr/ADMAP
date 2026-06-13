@@ -1,12 +1,13 @@
 """
 Module   : admap_m2.scorers.c2_scorer
 Version  : 1.0.0
-Dépend   : [admap_m2.models.alert]
+Dépend   : [admap_m2.core.scoring, admap_m2.models.alert]
 """
 from __future__ import annotations
 
 from collections import defaultdict
 
+from admap_m2.core.scoring import score_to_severity
 from admap_m2.models.alert import AlertSeverity, C2Alert
 
 
@@ -89,21 +90,16 @@ class C2Scorer:
         """
         Convertit un score entier en niveau de sévérité.
 
+        Délègue à admap_m2.core.scoring.score_to_severity (mapping canonique
+        partagé entre BaseDetector, C2Scorer et IOCCorrelator).
+
         Args:
             score: Score de 0 à 100.
 
         Returns:
             AlertSeverity correspondant.
         """
-        if score >= 80:
-            return AlertSeverity.CRITICAL
-        if score >= 60:
-            return AlertSeverity.HIGH
-        if score >= 40:
-            return AlertSeverity.MEDIUM
-        if score >= 20:
-            return AlertSeverity.LOW
-        return AlertSeverity.INFO
+        return score_to_severity(score)
 
     def group_by_severity(self, alerts: list[C2Alert]) -> dict[str, int]:
         """

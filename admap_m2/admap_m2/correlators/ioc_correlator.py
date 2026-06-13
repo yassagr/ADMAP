@@ -2,7 +2,7 @@
 Module   : admap_m2.correlators.ioc_correlator
 Version  : 1.0.0
 Dépend   : [json, pathlib, admap_m2.correlators.base, admap_m2.core.config,
-            admap_m2.models.alert, admap_m2.models.flow]
+            admap_m2.core.scoring, admap_m2.models.alert, admap_m2.models.flow]
 """
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from pathlib import Path
 
 from admap_m2.correlators.base import BaseCorrelator
 from admap_m2.core.config import Settings
+from admap_m2.core.scoring import score_to_severity
 from admap_m2.models.alert import AlertSeverity, AlertType, C2Alert
 from admap_m2.models.flow import NetworkFlow
 
@@ -107,21 +108,16 @@ class IOCCorrelator(BaseCorrelator):
         """
         Convertit un score en sévérité.
 
+        Délègue à admap_m2.core.scoring.score_to_severity (mapping canonique
+        partagé entre BaseDetector, C2Scorer et IOCCorrelator).
+
         Args:
             score: Score entre 0 et 100.
 
         Returns:
             AlertSeverity correspondante.
         """
-        if score >= 80:
-            return AlertSeverity.CRITICAL
-        if score >= 60:
-            return AlertSeverity.HIGH
-        if score >= 40:
-            return AlertSeverity.MEDIUM
-        if score >= 20:
-            return AlertSeverity.LOW
-        return AlertSeverity.INFO
+        return score_to_severity(score)
 
     def correlate(
         self, flows: list[NetworkFlow], alerts: list[C2Alert]

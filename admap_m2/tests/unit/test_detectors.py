@@ -1,7 +1,8 @@
 """
 Module   : tests.unit.test_detectors
 Version  : 1.0.0
-Dépend   : [pytest, datetime, admap_m2.detectors.*, admap_m2.models.*]
+Dépend   : [pytest, datetime, admap_m2.detectors.*, admap_m2.correlators.*,
+            admap_m2.models.*]
 """
 from __future__ import annotations
 
@@ -9,12 +10,14 @@ from datetime import datetime, timezone
 
 import pytest
 
+from admap_m2.correlators.geo_correlator import GeoCorrelator
+from admap_m2.correlators.ioc_correlator import IOCCorrelator
 from admap_m2.detectors.dns_tunnel_detector import DNSTunnelDetector
 from admap_m2.detectors.http_c2_detector import HTTPC2Detector
 from admap_m2.detectors.irc_detector import IRCDetector
 from admap_m2.detectors.port_scan_detector import PortScanDetector
 from admap_m2.detectors.tls_detector import TLSDetector
-from admap_m2.models.alert import AlertType
+from admap_m2.models.alert import AlertType, C2Alert
 from admap_m2.models.flow import DNSQuery, HTTPRequest, NetworkFlow, Protocol, TLSInfo
 
 
@@ -209,3 +212,52 @@ def test_tls_known_ja3_critical(test_settings) -> None:
     alerts = detector.detect([flow])
     assert len(alerts) >= 1
     assert alerts[0].confidence_score >= 50
+
+
+# ── Correlators ───────────────────────────────────────────────────────────────
+
+def test_geo_correlator_name(test_settings) -> None:
+    """correlator_name doit retourner 'geo_correlator'."""
+    assert GeoCorrelator(test_settings).correlator_name == "geo_correlator"
+
+
+def test_geo_correlator_no_reader_returns_empty(
+    test_settings, sample_flow: NetworkFlow, sample_alert: C2Alert
+) -> None:
+    """
+    Sans GEOIP_DB_PATH configuré (cas par défaut), correlate() retourne
+    une liste vide et ne journalise rien (self.reader est None).
+    """
+    correlator = GeoCorrelator(test_settings)
+    assert correlator.reader is None
+    result = correlator.correlate([sample_flow], [sample_alert])
+    assert result == []
+
+
+def test_geo_correlator_get_country_without_reader(test_settings) -> None:
+    """get_country() retourne 'Unknown' si aucune base GeoIP n'est chargée."""
+    correlator = GeoCorrelator(test_settings)
+    assert correlator.get_country("8.8.8.8") == "Unknown"
+
+
+def test_ioc_correlator_name(test_settings) -> None:
+    """correlator_name doit retourner 'ioc_correlator'."""
+    assert IOCCorrelator(test_settings).correlator_name == "ioc_correlator"
+
+
+def test_ioc_correlator_no_bundle_returns_empty(
+    test_settings, sample_flow: NetworkFlow
+) -> None:
+    """Sans bundle M1 chargé (bundle_id=None), correlate() retourne []."""
+    correlator = IOCCorrelator(test_settings)
+    assert correlator.bundle_id is None
+    result = correlator.correlate([sample_flow], [])
+    assert result == []
+
+
+def test_ioc_correlator_m1_score_to_m2_mapping(test_settings) -> None:
+    """_m1_score_to_m2 applique min(100, score_M1 * 0.9 + 10)."""
+    correlator = IOCCorrelator(test_settings)
+    assert correlator._m1_score_to_m2(0) == 10
+    assert correlator._m1_score_to_m2(100) == 100
+    assert correlator._m1_score_to_m2(50) == 55

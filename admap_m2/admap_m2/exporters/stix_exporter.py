@@ -11,7 +11,7 @@ import json
 from datetime import timezone
 
 from admap_m2.exporters.base import BaseExporter
-from admap_m2.models.alert import AlertBundle, AlertSeverity
+from admap_m2.models.alert import AlertBundle, AlertSeverity, C2Alert
 
 try:
     import stix2
@@ -52,14 +52,10 @@ class STIXExporter(BaseExporter):
             if alert.severity not in (AlertSeverity.CRITICAL, AlertSeverity.HIGH):
                 continue
 
-            pattern = self._build_pattern(alert)
-            if not pattern:
-                continue
-
             indicator = stix2.Indicator(
                 name=f"C2 Alert: {alert.alert_type.value} from {alert.src_ip}",
                 description=alert.description,
-                pattern=pattern,
+                pattern=self._build_pattern(alert),
                 pattern_type="stix",
                 valid_from=alert.first_seen.replace(tzinfo=timezone.utc),
                 created_by_ref=identity.id,
@@ -70,20 +66,29 @@ class STIXExporter(BaseExporter):
         stix_bundle = stix2.Bundle(objects=stix_objects)
         return stix_bundle.serialize(indent=4)
 
-    def _build_pattern(self, alert) -> str | None:
+    def _build_pattern(self, alert: C2Alert) -> str:
         """
         Construit un pattern STIX valide pour une alerte.
 
-        Utilise ipv4-addr ou domain-name selon la nature de dst_ip.
+        Distingue ipv4-addr, ipv6-addr et domain-name selon la nature de
+        dst_ip, pour produire un SCO (STIX Cyber-observable Object) du
+        type sémantiquement correct.
+
+        IMPORTANT : ipaddress.ip_address() accepte aussi bien les adresses
+        IPv4 que IPv6 — il faut explicitement tester isinstance(...,
+        ipaddress.IPv6Address) pour ne pas taguer une IPv6 comme ipv4-addr.
 
         Args:
             alert: C2Alert à convertir en pattern STIX.
 
         Returns:
-            Pattern STIX string ou None si impossible.
+            Pattern STIX string (toujours non vide).
         """
         try:
-            ipaddress.ip_address(alert.dst_ip)
-            return f"[ipv4-addr:value = '{alert.dst_ip}']"
+            ip_obj = ipaddress.ip_address(alert.dst_ip)
         except ValueError:
             return f"[domain-name:value = '{alert.dst_ip}']"
+
+        if isinstance(ip_obj, ipaddress.IPv6Address):
+            return f"[ipv6-addr:value = '{alert.dst_ip}']"
+        return f"[ipv4-addr:value = '{alert.dst_ip}']"
