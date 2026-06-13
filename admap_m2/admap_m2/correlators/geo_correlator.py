@@ -10,7 +10,7 @@ from admap_m2.models.alert import C2Alert
 from admap_m2.models.flow import NetworkFlow
 
 try:
-    import geoip2.database
+    import geoip2.database  # type: ignore[import-not-found]
     GEOIP_AVAILABLE = True
 except ImportError:
     GEOIP_AVAILABLE = False

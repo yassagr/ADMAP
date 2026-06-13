@@ -16,7 +16,7 @@ from admap_m2.models.alert import AlertSeverity, AlertType, C2Alert
 from admap_m2.models.flow import NetworkFlow
 
 try:
-    from admap_m1.models.ioc import IOCBundle  # noqa: F401
+    from admap_m1.models.ioc import IOCBundle  # type: ignore[import-not-found]  # noqa: F401
     M1_AVAILABLE = True
 except ImportError:
     M1_AVAILABLE = False
