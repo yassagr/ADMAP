@@ -1,0 +1,19 @@
+version: "3.9"
+services:
+  admap-m3:
+    build: .
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./corpus/malware:/corpus/malware:ro
+      - ./corpus/benign:/corpus/benign:ro
+      - ./output:/output
+    environment:
+      - ADMAP_M3_CORPUS_DIR=/corpus
+      - ADMAP_M3_OUTPUT_DIR=/output
+      - ADMAP_M3_M1_BASE_URL=http://admap-m1:8000
+    networks:
+      - admap_net
+networks:
+  admap_net:
+    driver: bridge
