@@ -19,13 +19,13 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 def score_to_confidence(delta: float) -> int:
     """Mapping canonique Δ → confiance (0-100).
 
-    Règle de calcul (piecewise linear, JAMAIS de valeur hardcodée
-    pour un token spécifique) :
+    Règle de calcul (piecewise linear, int() dans toutes les branches,
+    JAMAIS de valeur hardcodée pour un token spécifique) :
 
     - Δ < 0.30           → 0
     - 0.30 ≤ Δ < 0.50    → 40 + int((Δ − 0.30) / 0.20 × 30)   ∈ [40, 70[
     - 0.50 ≤ Δ < 0.80    → 70 + int((Δ − 0.50) / 0.30 × 20)   ∈ [70, 90[
-    - Δ ≥ 0.80           → 90 + min(10, int((Δ − 0.80) / 0.20 × 10))  ∈ [90, 100]
+    - Δ ≥ 0.80           → min(100, 90 + int((Δ − 0.80) / 0.20 × 10))  ∈ [90, 100]
     """
     if delta < 0.30:
         return 0
@@ -36,7 +36,8 @@ def score_to_confidence(delta: float) -> int:
     if delta < 0.80:
         return 70 + int((delta - 0.50) / 0.30 * 20)
 
-    return min(100, 90 + round((delta - 0.80) / 0.20 * 10))
+    # CORRECTION C6 : int() au lieu de round() — cohérence avec toutes les branches
+    return min(100, 90 + int((delta - 0.80) / 0.20 * 10))
 
 
 class TokenScorer:
@@ -60,15 +61,7 @@ class TokenScorer:
     ) -> list[TokenScore]:
         """Applique les critères de sélection et retourne la liste COMPLÈTE.
 
-        Les tokens sélectionnés ET rejetés sont retournés pour
-        traçabilité.
-
-        Args:
-            features: Liste de ``TokenFeature`` à évaluer.
-
-        Returns:
-            Liste de ``TokenScore`` avec ``selected`` et
-            ``rejection_reason`` renseignés.
+        Les tokens sélectionnés ET rejetés sont retournés pour traçabilité.
         """
         results: list[TokenScore] = []
 
@@ -125,13 +118,6 @@ class TokenScorer:
     ) -> list[TokenScore]:
         """Retourne les *n* meilleurs tokens ``selected=True``, triés par
         ``delta_score`` décroissant.
-
-        Args:
-            scores: Liste complète de ``TokenScore``.
-            n: Nombre maximum de tokens à retourner.
-
-        Returns:
-            Sous-liste triée par ``delta_score`` DESC.
         """
         selected: list[TokenScore] = [s for s in scores if s.selected]
         selected.sort(key=lambda s: s.delta_score, reverse=True)

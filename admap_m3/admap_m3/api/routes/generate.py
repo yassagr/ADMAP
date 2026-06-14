@@ -14,7 +14,7 @@ import uuid
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 
 from admap_m3.config import get_settings
 from admap_m3.models.job import GenerationJob, GenerationStatus
@@ -27,9 +27,9 @@ router: APIRouter = APIRouter(tags=["Generate"])
 @router.post("/generate", status_code=202)
 async def generate_rules(
     request: Request,
-    malware_files: list[UploadFile],
-    benign_files: list[UploadFile],
-    m1_bundle: UploadFile | None = None,
+    malware_files: list[UploadFile] = File(...),
+    benign_files: list[UploadFile] = File(...),
+    m1_bundle: UploadFile | None = File(default=None),
     malware_family: str | None = None,
     mitre_attack: str | None = None,
 ) -> dict[str, Any]:
@@ -67,10 +67,13 @@ async def generate_rules(
         if len(content) > settings.max_file_size_bytes:
             raise HTTPException(
                 status_code=413,
-                detail=f"Fichier trop volumineux : {upload.filename} "
-                f"({len(content)} bytes > {settings.max_file_size_bytes})",
+                detail=(
+                    f"Fichier trop volumineux : {upload.filename} "
+                    f"({len(content)} bytes > {settings.max_file_size_bytes})"
+                ),
             )
-        file_path: str = os.path.join(malware_dir, upload.filename or f"malware_{len(malware_paths)}")
+        safe_name: str = upload.filename or f"malware_{len(malware_paths)}"
+        file_path: str = os.path.join(malware_dir, os.path.basename(safe_name))
         with open(file_path, "wb") as fh:
             fh.write(content)
         malware_paths.append(file_path)
@@ -82,10 +85,13 @@ async def generate_rules(
         if len(content) > settings.max_file_size_bytes:
             raise HTTPException(
                 status_code=413,
-                detail=f"Fichier trop volumineux : {upload.filename} "
-                f"({len(content)} bytes > {settings.max_file_size_bytes})",
+                detail=(
+                    f"Fichier trop volumineux : {upload.filename} "
+                    f"({len(content)} bytes > {settings.max_file_size_bytes})"
+                ),
             )
-        file_path = os.path.join(benign_dir, upload.filename or f"benign_{len(benign_paths)}")
+        safe_name = upload.filename or f"benign_{len(benign_paths)}"
+        file_path = os.path.join(benign_dir, os.path.basename(safe_name))
         with open(file_path, "wb") as fh:
             fh.write(content)
         benign_paths.append(file_path)

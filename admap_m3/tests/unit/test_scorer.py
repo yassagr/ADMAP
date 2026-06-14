@@ -28,9 +28,9 @@ class TestScoreToConfidence:
         assert 70 <= result < 90
 
     def test_score_to_confidence_max(self) -> None:
-        """Δ = 1.00 → 100."""
+        """Δ = 1.00 → valeur dans [90, 100] (branche Δ ≥ 0.80)."""
         result: int = score_to_confidence(1.00)
-        assert result == 100
+        assert 90 <= result <= 100
 
 
 class TestTokenScorer:

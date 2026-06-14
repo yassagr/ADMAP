@@ -3,7 +3,7 @@ Fixtures partagées pour les tests ADMAP M3.
 """
 from __future__ import annotations
 
-import os
+import pathlib
 import tempfile
 
 import pytest
@@ -14,7 +14,11 @@ from admap_m3.core.pipeline import GenerationPipeline
 
 @pytest.fixture
 def settings() -> Settings:
-    """Settings de test avec seuils permissifs pour un petit corpus."""
+    """Settings de test avec min_df_malware=1 pour permettre les tests
+    sur de petits corpus (1-3 fichiers). min_tokens_per_rule=1 pour
+    garantir qu'une règle est produite même avec peu de tokens distinctifs.
+    Ces valeurs relâchées sont intentionnelles pour les tests unitaires.
+    """
     return Settings(
         delta_threshold=0.30,
         min_token_length=6,
@@ -30,9 +34,34 @@ def settings() -> Settings:
 
 
 @pytest.fixture
+def settings_strict() -> Settings:
+    """Settings de production (valeurs par défaut réelles) pour valider
+    les contraintes réelles : min_tokens_per_rule=3, min_df_malware=2.
+    """
+    return Settings(
+        delta_threshold=0.30,
+        min_token_length=6,
+        max_tokens_per_rule=20,
+        min_tokens_per_rule=3,
+        min_df_malware=2,
+        max_df_benign=0,
+        ngram_size=4,
+        corpus_dir=tempfile.mkdtemp(),
+        output_dir=tempfile.mkdtemp(),
+        m1_integration_enabled=False,
+    )
+
+
+@pytest.fixture
 def pipeline(settings: Settings) -> GenerationPipeline:
-    """Instance de pipeline configurée pour les tests."""
+    """Instance de pipeline configurée pour les tests (settings permissifs)."""
     return GenerationPipeline(settings=settings)
+
+
+@pytest.fixture
+def pipeline_strict(settings_strict: Settings) -> GenerationPipeline:
+    """Instance de pipeline avec les contraintes de production."""
+    return GenerationPipeline(settings=settings_strict)
 
 
 @pytest.fixture
@@ -67,12 +96,9 @@ def sample_benign_token_lists() -> list[list[str]]:
 
 
 @pytest.fixture
-def malware_text_files(tmp_path: object) -> list[str]:
+def malware_text_files(tmp_path: pathlib.Path) -> list[str]:
     """Crée des fichiers texte malware temporaires pour les tests d'intégration."""
-    import pathlib
-
-    tmp: pathlib.Path = tmp_path  # type: ignore[assignment]
-    malware_dir: pathlib.Path = tmp / "malware"
+    malware_dir: pathlib.Path = tmp_path / "malware"
     malware_dir.mkdir()
 
     contents: list[str] = [
@@ -90,12 +116,9 @@ def malware_text_files(tmp_path: object) -> list[str]:
 
 
 @pytest.fixture
-def benign_text_files(tmp_path: object) -> list[str]:
+def benign_text_files(tmp_path: pathlib.Path) -> list[str]:
     """Crée des fichiers texte bénins temporaires pour les tests d'intégration."""
-    import pathlib
-
-    tmp: pathlib.Path = tmp_path  # type: ignore[assignment]
-    benign_dir: pathlib.Path = tmp / "benign"
+    benign_dir: pathlib.Path = tmp_path / "benign"
     benign_dir.mkdir()
 
     contents: list[str] = [

@@ -3,47 +3,36 @@ Tests additionnels pour les routes jobs et l'API.
 """
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from admap_m3.api.app import app
 from admap_m3.models.job import GenerationJob, GenerationStatus
-from admap_m3.models.rule import RuleMetadata, YaraRule, YaraRuleSet
-
-
-def _setup_app_state() -> None:
-    """Simule le lifespan en initialisant app.state."""
-    app.state.job_queue = asyncio.Queue()
-    app.state.jobs = {}
-    app.state.results = {}
-
-
-def _teardown_app_state() -> None:
-    """Nettoie app.state."""
-    for attr in ("job_queue", "jobs", "results"):
-        if hasattr(app.state, attr):
-            delattr(app.state, attr)
 
 
 @pytest.mark.asyncio
 class TestJobsRoutes:
     """Tests des endpoints /jobs."""
 
+    @pytest.fixture(autouse=True)
+    async def _lifespan(self):
+        async with app.router.lifespan_context(app):
+            yield
+
     async def test_get_job_not_found(self) -> None:
-        _setup_app_state()
-        try:
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                response = await client.get("/api/v1/jobs/nonexistent")
-            assert response.status_code == 404
-        finally:
-            _teardown_app_state()
+        """GET /api/v1/jobs/nonexistent → 404."""
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/v1/jobs/nonexistent")
+        assert response.status_code == 404
 
     async def test_get_job_found(self) -> None:
-        _setup_app_state()
-        try:
+        """GET /api/v1/jobs/{id} pour un job existant → 200."""
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            # Injecter un job directement dans app.state (via lifespan déjà déclenché)
             job = GenerationJob(
                 job_id="test123",
                 status=GenerationStatus.PENDING,
@@ -51,19 +40,21 @@ class TestJobsRoutes:
             )
             app.state.jobs["test123"] = job
 
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                response = await client.get("/api/v1/jobs/test123")
-            assert response.status_code == 200
-            body = response.json()
-            assert body["job_id"] == "test123"
-            assert body["status"] == "pending"
-        finally:
-            _teardown_app_state()
+            response = await client.get("/api/v1/jobs/test123")
+
+            # Cleanup
+            del app.state.jobs["test123"]
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["job_id"] == "test123"
+        assert body["status"] == "pending"
 
     async def test_cancel_pending_job(self) -> None:
-        _setup_app_state()
-        try:
+        """DELETE /api/v1/jobs/{id} pour un job PENDING → 200."""
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
             job = GenerationJob(
                 job_id="cancel_me",
                 status=GenerationStatus.PENDING,
@@ -71,17 +62,20 @@ class TestJobsRoutes:
             )
             app.state.jobs["cancel_me"] = job
 
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                response = await client.delete("/api/v1/jobs/cancel_me")
-            assert response.status_code == 200
-            assert response.json()["status"] == "cancelled"
-        finally:
-            _teardown_app_state()
+            response = await client.delete("/api/v1/jobs/cancel_me")
+
+            # Cleanup
+            if "cancel_me" in app.state.jobs:
+                del app.state.jobs["cancel_me"]
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "cancelled"
 
     async def test_cancel_running_job_returns_409(self) -> None:
-        _setup_app_state()
-        try:
+        """DELETE /api/v1/jobs/{id} pour un job RUNNING → 409."""
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
             job = GenerationJob(
                 job_id="running_job",
                 status=GenerationStatus.RUNNING,
@@ -89,16 +83,18 @@ class TestJobsRoutes:
             )
             app.state.jobs["running_job"] = job
 
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                response = await client.delete("/api/v1/jobs/running_job")
-            assert response.status_code == 409
-        finally:
-            _teardown_app_state()
+            response = await client.delete("/api/v1/jobs/running_job")
+
+            # Cleanup
+            del app.state.jobs["running_job"]
+
+        assert response.status_code == 409
 
     async def test_get_result_not_completed(self) -> None:
-        _setup_app_state()
-        try:
+        """GET /api/v1/jobs/{id}/result pour un job PENDING → 409."""
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
             job = GenerationJob(
                 job_id="pending_result",
                 status=GenerationStatus.PENDING,
@@ -106,9 +102,9 @@ class TestJobsRoutes:
             )
             app.state.jobs["pending_result"] = job
 
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                response = await client.get("/api/v1/jobs/pending_result/result")
-            assert response.status_code == 409
-        finally:
-            _teardown_app_state()
+            response = await client.get("/api/v1/jobs/pending_result/result")
+
+            # Cleanup
+            del app.state.jobs["pending_result"]
+
+        assert response.status_code == 409

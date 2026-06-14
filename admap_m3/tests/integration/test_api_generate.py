@@ -13,10 +13,16 @@ from admap_m3.api.app import app
 class TestGenerateEndpoint:
     """Tests de l'endpoint de génération."""
 
+    @pytest.fixture(autouse=True)
+    async def _lifespan(self):
+        async with app.router.lifespan_context(app):
+            yield
+
     async def test_generate_capabilities(self) -> None:
         """GET /api/v1/generate/capabilities → 200 avec les formats."""
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
             response = await client.get("/api/v1/generate/capabilities")
 
         assert response.status_code == 200
@@ -29,25 +35,27 @@ class TestGenerateEndpoint:
 
     async def test_generate_returns_202(self) -> None:
         """POST /api/v1/generate avec des fichiers → 202 + job_id."""
-        import asyncio
-
-        from admap_m3.models.job import GenerationJob
-
-        # Manually set up app state to simulate the lifespan
-        app.state.job_queue = asyncio.Queue()
-        app.state.jobs = {}
-        app.state.results = {}
-
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            malware_content: bytes = b"CreateRemoteThread VirtualAllocEx evil_payload shellcode_dropper"
-            benign_content: bytes = b"CreateFile ReadFile WriteFile CloseHandle normal_operation"
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            malware_content: bytes = (
+                b"CreateRemoteThread VirtualAllocEx evil_payload shellcode_dropper"
+            )
+            benign_content: bytes = (
+                b"CreateFile ReadFile WriteFile CloseHandle normal_operation"
+            )
 
             response = await client.post(
                 "/api/v1/generate",
                 files=[
-                    ("malware_files", ("malware.txt", malware_content, "application/octet-stream")),
-                    ("benign_files", ("benign.txt", benign_content, "application/octet-stream")),
+                    (
+                        "malware_files",
+                        ("malware.txt", malware_content, "application/octet-stream"),
+                    ),
+                    (
+                        "benign_files",
+                        ("benign.txt", benign_content, "application/octet-stream"),
+                    ),
                 ],
             )
 
@@ -57,7 +65,29 @@ class TestGenerateEndpoint:
         assert body["status"] == "pending"
         assert "status_url" in body
 
-        # Clean up
-        del app.state.job_queue
-        del app.state.jobs
-        del app.state.results
+    async def test_generate_too_many_files_returns_400(self) -> None:
+        """POST /api/v1/generate avec trop de fichiers → 400."""
+        from admap_m3.config import get_settings
+
+        settings = get_settings()
+        max_per_side: int = settings.max_corpus_files // 2
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            # Dépasser la limite malware
+            files = []
+            for i in range(max_per_side + 1):
+                files.append(
+                    (
+                        "malware_files",
+                        (f"malware_{i}.txt", b"evil content here xxx", "application/octet-stream"),
+                    )
+                )
+            files.append(
+                ("benign_files", ("benign.txt", b"safe content here xxx", "application/octet-stream"))
+            )
+
+            response = await client.post("/api/v1/generate", files=files)
+
+        assert response.status_code == 400

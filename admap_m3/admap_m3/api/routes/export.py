@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import io
 import os
+import shutil
 import tempfile
 import zipfile
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from admap_m3.exporters.csv_exporter import CSVExporter
@@ -51,13 +52,16 @@ def _get_completed_ruleset(request: Request, job_id: str) -> YaraRuleSet:
     result: Any = results[job_id]
     if isinstance(result, YaraRuleSet):
         return result
-    # Si stocké comme dict (sérialisé)
     return YaraRuleSet.model_validate(result)
 
 
 @router.get("/export/{job_id}/yar")
-async def export_yar(request: Request, job_id: str) -> Response:
-    """Export au format YARA (.yar)."""
+async def export_yar(
+    request: Request,
+    job_id: str,
+    background_tasks: BackgroundTasks,
+) -> Response:
+    """Export au format YARA (.yar). Nettoyage du répertoire temporaire en arrière-plan."""
     ruleset: YaraRuleSet = _get_completed_ruleset(request, job_id)
 
     tmp_dir: str = tempfile.mkdtemp(prefix="admap_m3_export_")
@@ -67,8 +71,10 @@ async def export_yar(request: Request, job_id: str) -> Response:
     result: dict[str, Any] = exporter.export(ruleset, output_path)
 
     if result["status"] != "ok":
+        shutil.rmtree(tmp_dir, ignore_errors=True)
         raise HTTPException(status_code=500, detail=result.get("error", "Export échoué"))
 
+    background_tasks.add_task(shutil.rmtree, tmp_dir, True)
     return FileResponse(
         path=output_path,
         media_type="text/plain",
@@ -77,7 +83,11 @@ async def export_yar(request: Request, job_id: str) -> Response:
 
 
 @router.get("/export/{job_id}/json")
-async def export_json(request: Request, job_id: str) -> Response:
+async def export_json(
+    request: Request,
+    job_id: str,
+    background_tasks: BackgroundTasks,
+) -> Response:
     """Export au format JSON."""
     ruleset: YaraRuleSet = _get_completed_ruleset(request, job_id)
 
@@ -88,8 +98,10 @@ async def export_json(request: Request, job_id: str) -> Response:
     result: dict[str, Any] = exporter.export(ruleset, output_path)
 
     if result["status"] != "ok":
+        shutil.rmtree(tmp_dir, ignore_errors=True)
         raise HTTPException(status_code=500, detail=result.get("error", "Export échoué"))
 
+    background_tasks.add_task(shutil.rmtree, tmp_dir, True)
     return FileResponse(
         path=output_path,
         media_type="application/json",
@@ -98,7 +110,11 @@ async def export_json(request: Request, job_id: str) -> Response:
 
 
 @router.get("/export/{job_id}/stix")
-async def export_stix(request: Request, job_id: str) -> Response:
+async def export_stix(
+    request: Request,
+    job_id: str,
+    background_tasks: BackgroundTasks,
+) -> Response:
     """Export au format STIX 2.1."""
     ruleset: YaraRuleSet = _get_completed_ruleset(request, job_id)
 
@@ -109,8 +125,10 @@ async def export_stix(request: Request, job_id: str) -> Response:
     result: dict[str, Any] = exporter.export(ruleset, output_path)
 
     if result["status"] != "ok":
+        shutil.rmtree(tmp_dir, ignore_errors=True)
         raise HTTPException(status_code=500, detail=result.get("error", "Export échoué"))
 
+    background_tasks.add_task(shutil.rmtree, tmp_dir, True)
     return FileResponse(
         path=output_path,
         media_type="application/json",
@@ -119,7 +137,11 @@ async def export_stix(request: Request, job_id: str) -> Response:
 
 
 @router.get("/export/{job_id}/csv")
-async def export_csv(request: Request, job_id: str) -> Response:
+async def export_csv(
+    request: Request,
+    job_id: str,
+    background_tasks: BackgroundTasks,
+) -> Response:
     """Export au format CSV."""
     ruleset: YaraRuleSet = _get_completed_ruleset(request, job_id)
 
@@ -130,8 +152,10 @@ async def export_csv(request: Request, job_id: str) -> Response:
     result: dict[str, Any] = exporter.export(ruleset, output_path)
 
     if result["status"] != "ok":
+        shutil.rmtree(tmp_dir, ignore_errors=True)
         raise HTTPException(status_code=500, detail=result.get("error", "Export échoué"))
 
+    background_tasks.add_task(shutil.rmtree, tmp_dir, True)
     return FileResponse(
         path=output_path,
         media_type="text/csv",
@@ -141,33 +165,34 @@ async def export_csv(request: Request, job_id: str) -> Response:
 
 @router.get("/export/{job_id}/all")
 async def export_all(request: Request, job_id: str) -> StreamingResponse:
-    """Export de tous les formats dans un ZIP."""
+    """Export de tous les formats dans un ZIP (en mémoire — pas de fuite de répertoire)."""
     ruleset: YaraRuleSet = _get_completed_ruleset(request, job_id)
 
     tmp_dir: str = tempfile.mkdtemp(prefix="admap_m3_export_")
 
-    # Exporter dans chaque format
-    exporters: list[tuple[str, Any]] = [
-        (f"{ruleset.ruleset_id}.yar", YaraFileExporter()),
-        (f"{ruleset.ruleset_id}.json", JSONExporter()),
-        (f"{ruleset.ruleset_id}_stix.json", STIXExporter()),
-        (f"{ruleset.ruleset_id}.csv", CSVExporter()),
-    ]
+    try:
+        exporters: list[tuple[str, Any]] = [
+            (f"{ruleset.ruleset_id}.yar", YaraFileExporter()),
+            (f"{ruleset.ruleset_id}.json", JSONExporter()),
+            (f"{ruleset.ruleset_id}_stix.json", STIXExporter()),
+            (f"{ruleset.ruleset_id}.csv", CSVExporter()),
+        ]
 
-    exported_files: list[str] = []
-    for filename, exporter in exporters:
-        output_path = os.path.join(tmp_dir, filename)
-        result = exporter.export(ruleset, output_path)
-        if result["status"] == "ok":
-            exported_files.append(output_path)
+        exported_files: list[str] = []
+        for filename, exporter in exporters:
+            output_path = os.path.join(tmp_dir, filename)
+            result = exporter.export(ruleset, output_path)
+            if result["status"] == "ok":
+                exported_files.append(output_path)
 
-    # Créer le ZIP en mémoire
-    zip_buffer: io.BytesIO = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for file_path in exported_files:
-            zf.write(file_path, os.path.basename(file_path))
+        zip_buffer: io.BytesIO = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            for file_path in exported_files:
+                zf.write(file_path, os.path.basename(file_path))
 
-    zip_buffer.seek(0)
+        zip_buffer.seek(0)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
     return StreamingResponse(
         zip_buffer,

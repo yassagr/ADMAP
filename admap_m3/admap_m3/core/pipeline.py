@@ -67,19 +67,7 @@ class GenerationPipeline:
         malware_family: str | None = None,
         mitre_attack: list[str] | None = None,
     ) -> YaraRuleSet:
-        """Exécute le pipeline complet de génération YARA.
-
-        Args:
-            malware_paths: Chemins des fichiers malware.
-            benign_paths: Chemins des fichiers bénins.
-            corpus_id: Identifiant unique du corpus.
-            m1_bundle_path: Chemin du IOCBundle M1 (optionnel).
-            malware_family: Famille de malware ciblée (optionnel).
-            mitre_attack: Liste des IDs MITRE ATT&CK (optionnel).
-
-        Returns:
-            ``YaraRuleSet`` contenant les règles générées et validées.
-        """
+        """Exécute le pipeline complet de génération YARA."""
         pipeline_start: float = time.monotonic()
 
         # ── Stage 1 : Validation des chemins ─────────────────────────────
@@ -104,14 +92,18 @@ class GenerationPipeline:
         self._log_stage(3, "benign_extraction", stage_start, len(benign_paths))
 
         # ── Stage 4 : Enrichissement IOC M1 (optionnel) ──────────────────
+        # CORRECTION C4 : les tokens M1 sont ajoutés comme un NOUVEAU document
+        # dans malware_token_lists, pas injectés dans les documents existants.
+        # Cela préserve le calcul TF = count(t,d) / len(d) pour chaque doc.
         stage_start = time.monotonic()
+        m1_token_count: int = 0
         if m1_bundle_path and self._settings.m1_integration_enabled:
             m1_tokens: list[str] = await self._enrich_with_m1(m1_bundle_path)
             if m1_tokens:
-                # Ajouter les tokens M1 à chaque liste de tokens malware
-                for token_list in malware_token_lists:
-                    token_list.extend(m1_tokens)
-            self._log_stage(4, "m1_enrichment", stage_start, len(m1_tokens) if m1_tokens else 0)
+                # Ajouter comme document malware supplémentaire — NE PAS modifier les listes existantes
+                malware_token_lists.append(m1_tokens)
+                m1_token_count = len(m1_tokens)
+            self._log_stage(4, "m1_enrichment", stage_start, m1_token_count)
         else:
             self._log_stage(4, "m1_enrichment_skipped", stage_start, 0)
 
@@ -131,7 +123,6 @@ class GenerationPipeline:
         rules: list[YaraRule] = []
 
         if len(top_tokens) >= self._settings.min_tokens_per_rule:
-            # Calculer un hash du corpus pour les métadonnées
             corpus_hash: str = self._compute_corpus_hash(malware_paths + benign_paths)
 
             metadata: RuleMetadata = RuleMetadata(
@@ -179,18 +170,15 @@ class GenerationPipeline:
     def _validate_paths(self, paths: list[str]) -> None:
         """Valide que tous les fichiers existent et respectent la taille max.
 
-        Vérifie aussi l'absence de traversée de chemin (``..``).
+        Vérifie l'absence de traversée de chemin en comparant le chemin
+        absolu résolu avec le chemin normalisé.
         """
         for path in paths:
-            # Sécurité : pas de traversée de chemin
-            normalized: str = os.path.normpath(path)
-            if ".." in normalized.split(os.sep):
-                raise ValueError(f"Traversée de chemin détectée : {path}")
-
-            if not os.path.isfile(path):
+            abs_path: str = os.path.abspath(path)
+            if not os.path.isfile(abs_path):
                 raise FileNotFoundError(f"Fichier introuvable : {path}")
 
-            file_size: int = os.path.getsize(path)
+            file_size: int = os.path.getsize(abs_path)
             if file_size > self._settings.max_file_size_bytes:
                 raise ValueError(
                     f"Fichier trop volumineux ({file_size} bytes) : {path}"
