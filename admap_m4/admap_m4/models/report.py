@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 from pydantic import BaseModel, ConfigDict, Field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from admap_m4.models.cluster import ClusterBundle
 
@@ -58,7 +58,7 @@ class AnalysisJob(BaseModel):
     job_id: str
     status: JobStatus = JobStatus.pending
     alert_bundle_id: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: datetime | None = None
     completed_at: datetime | None = None
     error_message: str | None = None

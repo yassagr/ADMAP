@@ -1,7 +1,7 @@
 from __future__ import annotations
 import uuid
 import structlog
-from datetime import datetime
+from datetime import datetime, timezone
 from admap_m4.models.ttp import TTPVector, TTPProfile
 from admap_m4.models.cluster import CampaignCluster, ClusterBundle
 from admap_m4.core.tfidf_vectorizer import ManualTFIDFVectorizer
@@ -66,7 +66,7 @@ class ManualDBSCANClusterer:
                 total_profiles=0,
                 total_clusters=0,
                 noise_count=0,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
             )
 
         # Matrice de similarité (n x n), calculée manuellement
@@ -123,7 +123,7 @@ class ManualDBSCANClusterer:
             total_profiles=n,
             total_clusters=len(clusters),
             noise_count=len(noise_ids),
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
 
     def _get_neighbors(

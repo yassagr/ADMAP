@@ -95,15 +95,15 @@ def sample_profiles():
     return [
         TTPProfile(
             alert_id="1", alert_type="beaconing", techniques=["T1071", "T1573"],
-            tactics=["c2"], confidence_score=80, src_ip="1", dst_ip="2", timestamp=datetime.utcnow()
+            tactics=["c2"], confidence_score=80, src_ip="1", dst_ip="2", timestamp=datetime.now(timezone.utc)
         ),
         TTPProfile(
             alert_id="2", alert_type="beaconing", techniques=["T1071", "T1573"],
-            tactics=["c2"], confidence_score=80, src_ip="1", dst_ip="2", timestamp=datetime.utcnow()
+            tactics=["c2"], confidence_score=80, src_ip="1", dst_ip="2", timestamp=datetime.now(timezone.utc)
         ),
         TTPProfile(
             alert_id="3", alert_type="dns_tunnel", techniques=["T1048"],
-            tactics=["exfil"], confidence_score=90, src_ip="1", dst_ip="2", timestamp=datetime.utcnow()
+            tactics=["exfil"], confidence_score=90, src_ip="1", dst_ip="2", timestamp=datetime.now(timezone.utc)
         ),
     ]
 

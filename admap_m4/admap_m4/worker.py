@@ -1,7 +1,7 @@
 from __future__ import annotations
 import asyncio
 import structlog
-from datetime import datetime
+from datetime import datetime, timezone
 from admap_m4.config import Settings
 from admap_m4.models.report import AnalysisJob, JobStatus
 from admap_m4.core.pipeline import AnalysisPipeline
@@ -46,7 +46,7 @@ class AsyncWorker:
             return
 
         job.status = JobStatus.running
-        job.started_at = datetime.utcnow()
+        job.started_at = datetime.now(timezone.utc)
         self._log.info("job_started", job_id=job_id)
 
         try:
@@ -58,10 +58,10 @@ class AsyncWorker:
             )
             job.result = result
             job.status = JobStatus.completed
-            job.completed_at = datetime.utcnow()
+            job.completed_at = datetime.now(timezone.utc)
             self._log.info("job_completed", job_id=job_id)
         except Exception as e:
             job.status = JobStatus.failed
             job.error_message = str(e)
-            job.completed_at = datetime.utcnow()
+            job.completed_at = datetime.now(timezone.utc)
             self._log.error("job_failed", job_id=job_id, error=str(e))

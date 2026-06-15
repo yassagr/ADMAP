@@ -3,7 +3,7 @@ import json
 import time
 import uuid
 import structlog
-from datetime import datetime
+from datetime import datetime, timezone
 from admap_m4.config import Settings, get_settings
 from admap_m4.models.report import AnalysisOptions, APTMapReport
 from admap_m4.models.cluster import ClusterBundle
@@ -190,5 +190,5 @@ class AnalysisPipeline:
             noise_count=cluster_bundle.noise_count,
             analysis_duration_seconds=round(time.monotonic() - start_time, 3),
             options_used=self._options,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
