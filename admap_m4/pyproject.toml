@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "admap_m4"
+version = "1.0.0"
+description = "ADMAP M4 - APT Mapper / Clustering"
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+minversion = "8.2"
+addopts = "-ra -q --cov=admap_m4 --cov-report=term-missing"
+testpaths = [
+    "tests",
+]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["admap_m4"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "raise ImportError",
+]

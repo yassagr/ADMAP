@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  admap-m4:
+    build: .
+    ports:
+      - "8003:8003"
+    environment:
+      - ADMAP_M4_DEBUG=false
+      - ADMAP_M4_DBSCAN_EPSILON=0.3
+      - ADMAP_M4_DBSCAN_MIN_SAMPLES=2
+    restart: unless-stopped
+    network_mode: bridge
