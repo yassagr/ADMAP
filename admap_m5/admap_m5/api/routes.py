@@ -46,7 +46,7 @@ async def analyze(
     apt_map_report: UploadFile = File(..., description="APTMapReport JSON de M4"),
     ioc_bundle: UploadFile | None = File(default=None, description="IOCBundle JSON de M1 (optionnel)"),
     alert_bundle: UploadFile | None = File(default=None, description="AlertBundle JSON de M2 (optionnel)"),
-    options: str | None = Form(default=None, description="AttributionOptions JSON sérialisé"),
+    options: str | None = Form(default=None, description="AttributionOptions JSON serialise"),
 ) -> dict:
     """Soumet un job d'attribution. Retourne 202 avec job_id."""
     settings = get_settings()
@@ -123,42 +123,42 @@ async def cancel_job(job_id: str, request: Request) -> dict:
     return {"job_id": job_id, "status": "cancelled"}
 
 
-@router.get("/api/v1/export/{job_id}/{format}")
-async def export_result(job_id: str, format: str, request: Request) -> JSONResponse:
+@router.get("/api/v1/export/{job_id}/{export_format}")
+async def export_result(job_id: str, export_format: str, request: Request) -> JSONResponse:
     """Export du rapport en json | csv | stix | all.
     
-    Ne lève jamais RuntimeError — retourne un JSON d'erreur structuré.
+    Ne leve jamais RuntimeError — retourne un JSON d'erreur structure.
     """
     jobs: dict = request.app.state.jobs
     job: AttributionJob | None = jobs.get(job_id)
     if job is None:
         return JSONResponse(status_code=404, content={"error": "Job not found", "job_id": job_id})
     if job.status != JobStatus.COMPLETED or job.result is None:
-        return JSONResponse(status_code=409, content={"error": "Job not completed", "status": job.status})
+        return JSONResponse(status_code=409, content={"error": "Job not completed", "status": str(job.status)})
 
     report = job.result
     valid_formats = {"json", "csv", "stix", "all"}
-    if format not in valid_formats:
-        return JSONResponse(status_code=400, content={"error": f"Invalid format: {format}", "valid": list(valid_formats)})
+    if export_format not in valid_formats:
+        return JSONResponse(status_code=400, content={"error": f"Invalid format: {export_format}", "valid": list(valid_formats)})
 
     result_parts: dict[str, object] = {}
     errors: list[str] = []
 
-    if format in ("json", "all"):
+    if export_format in ("json", "all"):
         out = JSONExporter().export(report)
         if "error" in out:
             errors.append(f"json: {out['error']}")
         else:
             result_parts["json"] = out
 
-    if format in ("csv", "all"):
+    if export_format in ("csv", "all"):
         out = CSVExporter().export(report)
         if "error" in out:
             errors.append(f"csv: {out['error']}")
         else:
             result_parts["csv"] = out
 
-    if format in ("stix", "all"):
+    if export_format in ("stix", "all"):
         out = STIXExporter().export(report)
         if "error" in out:
             errors.append(f"stix: {out['error']}")
@@ -168,10 +168,10 @@ async def export_result(job_id: str, format: str, request: Request) -> JSONRespo
     if errors and not result_parts:
         return JSONResponse(status_code=500, content={"errors": errors, "job_id": job_id})
 
-    if format == "all":
+    if export_format == "all":
         return JSONResponse(content={"job_id": job_id, "exports": result_parts, "errors": errors})
     else:
-        key = format
+        key = export_format
         return JSONResponse(content=result_parts.get(key, {"error": "export failed"}))
 
 

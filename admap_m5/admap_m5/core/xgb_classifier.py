@@ -1,6 +1,4 @@
 from __future__ import annotations
-import json
-import math
 from pathlib import Path
 import structlog
 from admap_m5.core.apt_kb import APTGroup
@@ -132,7 +130,6 @@ def generate_synthetic_xgb_model(
             n_estimators=50,
             max_depth=4,
             learning_rate=0.1,
-            use_label_encoder=False,
             eval_metric="mlogloss",
             random_state=42,
         )

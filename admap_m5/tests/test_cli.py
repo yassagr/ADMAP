@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import pytest
 from click.testing import CliRunner
 from admap_m5.cli import cli
@@ -21,8 +22,12 @@ def test_attribute_missing_required():
 def test_attribute_runs_end_to_end(sample_apt_map_report_json, tmp_path):
     report_file = tmp_path / "report.json"
     report_file.write_text(sample_apt_map_report_json, encoding="utf-8")
-    
+
     runner = CliRunner()
     result = runner.invoke(cli, ["attribute", "--apt-map-report", str(report_file)])
     assert result.exit_code == 0
-    assert result.output != ""
+    assert result.output.strip() != ""
+    # Verifier que la sortie est du JSON valide
+    parsed = json.loads(result.output)
+    assert "report_id" in parsed
+    assert "results" in parsed

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import structlog
 from admap_m5.models.output import AttributionReport, APTCandidate
 
@@ -19,7 +19,7 @@ class STIXExporter:
 
     def export(self, report: AttributionReport) -> dict:
         try:
-            now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+            now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             objects: list[dict] = []
 
             # Identity "ADMAP Platform M5"

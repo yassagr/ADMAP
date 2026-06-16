@@ -2,7 +2,7 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 import structlog
 
@@ -54,7 +54,7 @@ class AttributionPipeline:
         options: AttributionOptions | None = None,
     ) -> AttributionReport:
         """Exécute le pipeline complet et retourne un AttributionReport."""
-        effective_options = options or self._options
+        options = options or self._options
         start_time = time.monotonic()
         report_id = str(uuid.uuid4())
 
@@ -67,7 +67,7 @@ class AttributionPipeline:
             apt_map_report_json,
             ioc_bundle_json,
             alert_bundle_json,
-            effective_options,
+            options,
             report_id,
             start_time,
         )
@@ -94,7 +94,11 @@ class AttributionPipeline:
         except Exception:
             source_report_id = "unknown"
 
-        # ── Stage 1 : Feature extraction ─────────────────────────────────────
+        # Calcul noise_skipped AVANT filtrage (depuis le JSON brut)
+        total_noise_in_report = self._count_noise_clusters(apt_map_report_json)
+        noise_skipped = total_noise_in_report if not options.include_noise_clusters else 0
+
+        # -- Stage 1 : Feature extraction ------------------------------------
         logger.info("pipeline.stage1_feature_extraction", report_id=report_id)
         features_list: list[ClusterFeatures] = self._extractor.extract(
             apt_map_report_json=apt_map_report_json,
@@ -102,9 +106,8 @@ class AttributionPipeline:
             alert_bundle_json=alert_bundle_json,
             include_noise=options.include_noise_clusters,
         )
-        noise_skipped = sum(1 for f in features_list if f.cluster_label == -1)
 
-        # ── Stage 2 : Corpus embedding (TF-IDF) ──────────────────────────────
+        # -- Stage 2 : Corpus embedding (TF-IDF) -----------------------------
         logger.info("pipeline.stage2_embedding", report_id=report_id)
         embedder = CosineEmbedder()
         apt_groups = self._kb.groups
@@ -260,9 +263,15 @@ class AttributionPipeline:
             noise_clusters_skipped=noise_skipped,
             analysis_duration_seconds=round(duration, 3),
             options_used=options.model_dump(),
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
 
-    @property
-    def _effective_options(self) -> AttributionOptions:
-        return self._options
+    def _count_noise_clusters(self, apt_map_report_json: str) -> int:
+        """Compte les clusters noise (label=-1) dans le rapport brut JSON."""
+        import json as _json
+        try:
+            data = _json.loads(apt_map_report_json)
+            clusters = data.get("cluster_bundle", {}).get("clusters", [])
+            return sum(1 for c in clusters if c.get("cluster_label", 0) == -1)
+        except Exception:
+            return 0
