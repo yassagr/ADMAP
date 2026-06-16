@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  admap-m5:
+    build: .
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./data:/app/data
+      - ./models_store:/app/models_store
+    environment:
+      - M5_PORT=8004
+      - M5_DEBUG=False
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

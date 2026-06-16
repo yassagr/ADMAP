@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "admap-m5"
+version = "1.0.0"
+description = "ADMAP Module 5 — APT Attribution via XGBoost + Cosine Similarity"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "structlog>=24.1.0",
+    "click>=8.1.0",
+    "xgboost>=2.0.0",
+    "scikit-learn>=1.4.0",
+    "joblib>=1.4.0",
+    "numpy>=1.26.0",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.27.0",
+]
+
+[project.scripts]
+admap-m5 = "admap_m5.cli:cli"
+
+[tool.setuptools.packages.find]
+include = ["admap_m5*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["admap_m5"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+fail_under = 80
