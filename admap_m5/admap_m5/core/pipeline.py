@@ -3,7 +3,7 @@ import asyncio
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+
 import structlog
 
 from admap_m5.config import M5Settings, get_settings

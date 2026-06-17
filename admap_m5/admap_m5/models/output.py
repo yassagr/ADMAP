@@ -1,5 +1,5 @@
 from __future__ import annotations
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -41,6 +41,6 @@ class AttributionReport(BaseModel):
     noise_clusters_skipped: int
     analysis_duration_seconds: float
     options_used: dict[str, object]
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     version: str = "1.0.0"
     module: str = "M5-Attribution"

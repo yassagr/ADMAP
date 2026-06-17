@@ -5,11 +5,8 @@ from admap_m5.api.app import create_app
 
 
 @pytest.fixture
-async def app():
-    from admap_m5.api.app import lifespan
-    app_instance = create_app()
-    async with lifespan(app_instance):
-        yield app_instance
+def app():
+    return create_app()
 
 
 @pytest.mark.asyncio
