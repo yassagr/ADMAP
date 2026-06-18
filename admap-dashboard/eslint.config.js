@@ -19,4 +19,13 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Composants shadcn/ui (vendored) : ils exportent leurs `*Variants` (cva)
+    // à côté du composant, ce que react-refresh interdit. Aucun impact runtime
+    // (règle HMR uniquement) — on la désactive pour ce dossier.
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

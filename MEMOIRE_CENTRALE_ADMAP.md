@@ -581,3 +581,79 @@ de specs, génération de ce document lui-même), Claude répond normalement.
    documentés en section 4. Port 8004. Couverture >= 80%, 11 fichiers de test.
 5. Tous les modules M1–M5 sont terminés. ADMAP est fonctionnellement complet
    en mode microservices indépendants. Prochaine étape optionnelle : hub central
+
+
+   ## 11. CHANTIER DASHBOARD + GATEWAY — ÉTAT D'AVANCEMENT
+
+### Décisions d'orchestration
+- Dashboard web choisi en premier (avant l'enrichissement IA Phase 2), comme couche
+  d'orchestration unifiant M1–M5. L'IA viendra ensuite, module par module.
+- Web (pas desktop) — norme SOC/CERT.
+- Stack : React 19 + Vite + TypeScript strict + Tailwind + shadcn/ui + react-router-dom
+  + Zustand + framer-motion + recharts + lucide-react + axios. Aucune dépendance hors
+  de cette liste sans validation explicite.
+- Architecture : un BFF FastAPI `admap_gateway` (port 9000) proxifie le frontend vers
+  les 5 microservices. Le front n'appelle jamais les microservices en direct.
+
+### admap_gateway (BFF) — état réel
+- Vrai package Python (`__init__.py` + imports relatifs). LANCEMENT OBLIGATOIRE :
+  `uvicorn admap_gateway.main:app --port 9000` depuis la RACINE du projet (pas de cd).
+- `get_settings()` avec `@lru_cache` + `SettingsConfigDict` (conforme invariants).
+- Proxy `routers/proxy_utils.py` : le client httpx et la réponse upstream sont fermés
+  dans le `finally` du générateur de StreamingResponse (NE PAS revenir à `async with`,
+  qui fermait le client avant le streaming — bug critique déjà corrigé).
+- Routes : GET /api/status (agrège health M1–M5), proxy /api/m{n}/**, WS /ws/jobs/{id}.
+- `routers/pipeline.py` /full est ENCORE UN STUB (faux tracking). Orchestration réelle
+  reportée au lot Pipeline.
+
+### Non-uniformité des microservices (CRITIQUE — encodé dans la couche API front)
+Les 5 microservices ne sont PAS uniformes. Chaque `src/api/m{n}.ts` a son propre contrat :
+- M1 : POST /m1/api/v1/analyze (file + enable_vt + enable_deobfuscation). Export en
+  QUERY PARAM : GET /export/{id}?format=stix21|openioc|misp|cytomic (PAS de json/csv/all).
+- M2 : POST /m2/api/v1/analyze (PCAP + 7 bools détecteurs + m1_bundle_path + min_confidence).
+  Export PATH SEGMENT : /export/{id}/{json|csv|stix|all}.
+- M3 : POST /m3/api/v1/GENERATE (pas "analyze") — malware_files[] + benign_files[] requis
+  + m1_bundle opt. Export : /export/{id}/{yar|json|stix|csv|all} (format `yar` en plus).
+- M4 : POST /m4/api/v1/analyze (alert_bundle req + ioc_bundle/yara_ruleset/options opt).
+  Export PATH SEGMENT standard.
+- M5 : POST /m5/api/v1/analyze (apt_map_report req + ioc_bundle/alert_bundle/options opt).
+  Export PATH SEGMENT standard.
+- Communs : GET .../jobs/{id}, GET .../jobs/{id}/result, DELETE .../jobs/{id}.
+- WebSocket : ws://<gateway>/ws/jobs/{id}?module=m{n} (HORS axios, hors /api).
+
+### Incohérence JobStatus entre modules (à connaître)
+M1 utilise `queued`, M4/M5 utilisent `pending`. Résolu côté front par une union
+couvrant les deux dans `src/types/common.ts`. Le store Zustand est aligné sur ces
+types canoniques.
+
+### Thème non alpha-aware (dette reportée au polish)
+Les tokens couleur sont des `var(--x)` hex bruts, donc les modificateurs d'opacité
+Tailwind (`bg-primary/20`) ne génèrent rien. Règle actuelle : transparence/glow via
+`rgba()` brut sur les couleurs de marque, ou palette Tailwind native (emerald-400/20…).
+NE PAS refactorer le thème — reporté au polish visuel final.
+
+### Override ESLint (à ne pas supprimer par erreur)
+`eslint.config.js` désactive `react-refresh/only-export-components` pour
+`src/components/ui/**` car les composants shadcn exportent leurs `*Variants` (cva).
+Override ciblé et volontaire.
+
+### Avancement par lots (dashboard construit lot par lot, pas en une fois)
+- LOT 0 ✅ Fondations : lib/utils, types M1–M5, layout/sidebar, routing, 9 pages
+  placeholder, corrections gateway. Build + gateway OK.
+- LOT 1 ✅ Infrastructure : couche API par module (src/api/), hooks
+  (useModuleHealth/useJobPolling/useExport), 10 composants partagés
+  (src/components/shared/), ToastProvider, alignement store. Build + lint à 0 erreur.
+- LOT 2 ⏳ À FAIRE : page M2 complète comme GABARIT DE RÉFÉRENCE (upload PCAP →
+  WebSocket temps réel → alertes → graphe réseau D3 → exports).
+- LOT 3 : décliner M1, M3, M4, M5 sur le modèle de M2.
+- LOT 4 : Pipeline (avec orchestration réelle du gateway), Jobs, Settings, heatmap MITRE.
+
+### Composants partagés disponibles (src/components/shared/)
+SeverityBadge, JobStatusBadge, ScoreGauge (SVG pur), FileDropZone, JobProgressSteps,
+DataTable (générique typée), JsonViewer, ExportPanel, AIPhaseSlot, ToastProvider
+(+ useToast dans toast-context.ts). Barrel : src/components/shared/index.ts.
+
+### Méthode de travail Claude Code (validée empiriquement)
+Mode Plan d'abord → validation → exécution par sous-groupes avec build après chacun →
+commit → /clear entre chaque lot. Découpage obligatoire : un méga-prompt déborde et
+tronque (constaté). Opus pour les lots à réflexion (M2), modèle léger pour le répétitif (M3).

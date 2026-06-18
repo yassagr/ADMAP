@@ -61,6 +61,29 @@ export interface JobAcceptedResponse {
   status_url: string;
 }
 
+/**
+ * Statut complet d'un job retourné par `GET /m{n}/api/v1/jobs/{id}`.
+ *
+ * Forme unifiée tolérante : les modules divergent sur certains champs — M1
+ * expose `current_stage` + `error` + `result_bundle_id`, M5 expose
+ * `error_message` + `result`. Les champs optionnels couvrent ces variantes ;
+ * l'index signature absorbe le reste sans casser le typage côté front.
+ */
+export interface JobInfo {
+  job_id: string;
+  status: JobStatus;
+  progress?: number;
+  current_stage?: string;
+  created_at?: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  error?: string | null;
+  error_message?: string | null;
+  result?: unknown;
+  result_bundle_id?: string | null;
+  [key: string]: unknown;
+}
+
 /** Enveloppe d'erreur structurée renvoyée par l'API (FastAPI `detail`). */
 export interface ApiError {
   detail: string;
