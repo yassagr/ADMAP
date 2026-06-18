@@ -3,8 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from routers import status, m1, m2, m3, m4, m5, pipeline
-from ws import jobs
+from .routers import status, m1, m2, m3, m4, m5, pipeline
+from .ws import jobs
 
 logger = structlog.get_logger()
 

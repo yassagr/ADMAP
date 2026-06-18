@@ -48,8 +48,11 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-accent-cyan/20;
+    @apply bg-background text-foreground antialiased;
     font-family: 'Inter', sans-serif;
+  }
+  body ::selection {
+    background-color: rgba(0, 212, 255, 0.2); /* var(--accent-cyan) @ 20% */
   }
   
   /* Fonts setup - expecting import in HTML */
@@ -61,7 +64,8 @@
 /* Custom utilities */
 @layer utilities {
   .glass-card {
-    @apply bg-bg-secondary/60 backdrop-blur-sm border border-border;
+    @apply backdrop-blur-sm border border-border;
+    background-color: rgba(13, 21, 38, 0.6); /* var(--bg-secondary) @ 60% */
   }
   
   .glow-active {
