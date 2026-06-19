@@ -6,6 +6,7 @@
  * point culminant (attribution APT), et enfin le panneau d'export consolidé.
  */
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Download, FileText, Loader2, Trophy } from "lucide-react";
 
@@ -265,7 +266,15 @@ function PipelineExport({
   steps: PipelineStepMap;
 }) {
   const { download, isExporting } = useExport();
+  const navigate = useNavigate();
   const [active, setActive] = useState<string | null>(null);
+
+  // Le rapport est disponible dès qu'une étape est terminée et qu'aucune ne
+  // tourne encore (le run est alors persisté dans le store par la page Pipeline).
+  const isRunning = Object.values(steps).some((s) => s.status === "running");
+  const reportReady =
+    !isRunning &&
+    Boolean(results.m1 || results.m2 || results.m3 || results.m4 || results.m5);
 
   const stixTargets: { id: string; label: string; run: () => Promise<Blob> }[] = [];
   if (results.m1 && steps.m1.jobId)
@@ -340,7 +349,17 @@ function PipelineExport({
               )}
               Résultat complet (JSON)
             </Button>
-            <Button variant="outline" size="sm" disabled title="à venir">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!reportReady}
+              title={
+                reportReady
+                  ? "Ouvrir le rapport imprimable"
+                  : "Disponible une fois le pipeline terminé"
+              }
+              onClick={() => navigate("/report")}
+            >
               <FileText />
               Rapport PDF
             </Button>

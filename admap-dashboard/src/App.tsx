@@ -8,6 +8,7 @@ import { M3 } from "@/pages/M3";
 import { M4 } from "@/pages/M4";
 import { M5 } from "@/pages/M5";
 import { Pipeline } from "@/pages/Pipeline";
+import { Report } from "@/pages/Report";
 import { AI } from "@/pages/AI";
 import { Jobs } from "@/pages/Jobs";
 import { Settings } from "@/pages/Settings";
@@ -24,6 +25,7 @@ function App() {
           <Route path="m4" element={<M4 />} />
           <Route path="m5" element={<M5 />} />
           <Route path="pipeline" element={<Pipeline />} />
+          <Route path="report" element={<Report />} />
           <Route path="ai" element={<AI />} />
           <Route path="jobs" element={<Jobs />} />
           <Route path="settings" element={<Settings />} />

@@ -27,6 +27,7 @@ import type { ModuleId } from "@/types";
 export function Pipeline() {
   const { toast } = useToast();
   const moduleStatus = useAdmapStore((s) => s.moduleStatus);
+  const setLastPipelineRun = useAdmapStore((s) => s.setLastPipelineRun);
   const { steps, results, isRunning, error, run, reset } = usePipeline();
 
   const [lastInputs, setLastInputs] = useState<PipelineInputs | null>(null);
@@ -36,7 +37,7 @@ export function Pipeline() {
     (id) => moduleStatus[id].status !== "ok",
   );
 
-  // Toasts de fin de pipeline (transition running → arrêt).
+  // Toasts de fin de pipeline (transition running → arrêt) + persistance du run.
   useEffect(() => {
     if (prevRunningRef.current && !isRunning) {
       if (error) {
@@ -55,9 +56,26 @@ export function Pipeline() {
             : "Aucun acteur APT retenu.",
         });
       }
+
+      // Persiste le dernier run (même partiel) pour la page Rapport (/report).
+      const hasResults =
+        results.m1 || results.m2 || results.m3 || results.m4 || results.m5;
+      if (hasResults && lastInputs) {
+        setLastPipelineRun({
+          runId: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          meta: {
+            pcapName: lastInputs.pcap.name,
+            suspectFileName: lastInputs.suspectFile?.name,
+            corpusMalwareCount: lastInputs.corpusMalware?.length ?? 0,
+            corpusBenignCount: lastInputs.corpusBenign?.length ?? 0,
+          },
+          results: { ...results },
+        });
+      }
     }
     prevRunningRef.current = isRunning;
-  }, [isRunning, error, results, toast]);
+  }, [isRunning, error, results, toast, lastInputs, setLastPipelineRun]);
 
   const handleSubmit = (inputs: PipelineInputs): void => {
     setLastInputs(inputs);

@@ -67,8 +67,70 @@
     @apply backdrop-blur-sm border border-border;
     background-color: rgba(13, 21, 38, 0.6); /* var(--bg-secondary) @ 60% */
   }
-  
+
   .glow-active {
     box-shadow: 0 0 12px rgba(0,212,255,0.3);
+  }
+}
+
+/*
+ * Impression / Export PDF de la page Rapport (/report).
+ * Ne s'applique qu'à l'impression : l'affichage écran normal est inchangé.
+ * Passe le document en noir sur blanc, masque la coquille applicative
+ * (sidebar/nav, boutons) et force des sauts de page propres par section.
+ */
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+
+  /* Masque la coquille et tout élément interactif/non imprimable. */
+  aside,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Étend la zone de contenu sur toute la largeur de la page. */
+  main {
+    overflow: visible !important;
+  }
+  main > div {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  /* Normalise le rapport en encre noire sur fond blanc (override des
+     thèmes sombres, y compris les styles inline des cartes). */
+  .print-area,
+  .print-area * {
+    color: #000000 !important;
+    background-color: transparent !important;
+    border-color: #999999 !important;
+    box-shadow: none !important;
+  }
+
+  /* Sauts de page propres : aucune section coupée en deux. */
+  .report-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .report-card {
+    border: 1px solid #999999 !important;
+  }
+
+  /* Tableaux imprimables lisibles. */
+  .print-area table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  .print-area th,
+  .print-area td {
+    border: 1px solid #cccccc !important;
+    padding: 4px 8px;
+  }
+
+  /* Liens non soulignés et en noir (pas d'URL parasite). */
+  .print-area a {
+    text-decoration: none !important;
   }
 }

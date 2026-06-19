@@ -1,5 +1,14 @@
 import { create } from "zustand";
-import type { JobStatus, ModuleHealth, ModuleId } from "@/types";
+import type {
+  AlertBundle,
+  APTMapReport,
+  AttributionReport,
+  IOCBundle,
+  JobStatus,
+  ModuleHealth,
+  ModuleId,
+  YaraRuleSet,
+} from "@/types";
 
 /**
  * Job suivi côté UI — vue allégée de l'`AnalysisJob` backend.
@@ -14,6 +23,34 @@ export interface JobState {
   error?: string;
 }
 
+/** Sorties agrégées d'un run de pipeline (présentes si l'étape a réussi). */
+export interface PipelineRunResults {
+  m1?: IOCBundle;
+  m2?: AlertBundle;
+  m3?: YaraRuleSet;
+  m4?: APTMapReport;
+  m5?: AttributionReport;
+}
+
+/** Métadonnées d'un run (entrées analysées, identifiant, horodatage). */
+export interface PipelineRunMeta {
+  pcapName: string;
+  suspectFileName?: string;
+  corpusMalwareCount: number;
+  corpusBenignCount: number;
+}
+
+/**
+ * Dernier run de pipeline persisté pour la page Rapport (/report).
+ * Indépendant de l'état local éphémère de `usePipeline` : survit à la navigation.
+ */
+export interface PipelineRun {
+  runId: string;
+  createdAt: string;
+  meta: PipelineRunMeta;
+  results: PipelineRunResults;
+}
+
 /** Préférences UI locales (non issues du backend). */
 export interface Settings {
   moduleUrls: Record<string, string>;
@@ -26,11 +63,13 @@ interface AdmapStore {
   moduleStatus: Record<ModuleId, ModuleHealth>;
   activeJobs: Record<string, JobState>;
   jobResults: Record<string, unknown>;
+  lastPipelineRun: PipelineRun | null;
   settings: Settings;
 
   updateModuleStatus: (module: ModuleId, health: ModuleHealth) => void;
   upsertJob: (job: JobState) => void;
   setJobResult: (jobId: string, result: unknown) => void;
+  setLastPipelineRun: (run: PipelineRun | null) => void;
   updateSettings: (partial: Partial<Settings>) => void;
 }
 
@@ -44,6 +83,7 @@ export const useAdmapStore = create<AdmapStore>((set) => ({
   },
   activeJobs: {},
   jobResults: {},
+  lastPipelineRun: null,
   settings: {
     moduleUrls: {
       gateway: "http://localhost:9000",
@@ -67,6 +107,8 @@ export const useAdmapStore = create<AdmapStore>((set) => ({
     set((state) => ({
       jobResults: { ...state.jobResults, [jobId]: result },
     })),
+
+  setLastPipelineRun: (run) => set({ lastPipelineRun: run }),
 
   updateSettings: (partial) =>
     set((state) => ({
