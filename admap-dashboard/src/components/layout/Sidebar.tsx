@@ -26,12 +26,12 @@ interface NavItem {
 
 const NAV_ITEMS: readonly NavItem[] = [
   { to: "/", label: "Overview", icon: LayoutDashboard },
+  { to: "/pipeline", label: "Pipeline", icon: Workflow },
   { to: "/m1", label: "M1 · IOC Extractor", icon: FileSearch, module: "m1" },
   { to: "/m2", label: "M2 · C2 Detector", icon: Radar, module: "m2" },
   { to: "/m3", label: "M3 · YARA Generator", icon: ScanLine, module: "m3" },
   { to: "/m4", label: "M4 · APT Mapper", icon: Network, module: "m4" },
   { to: "/m5", label: "M5 · Attribution", icon: Fingerprint, module: "m5" },
-  { to: "/pipeline", label: "Pipeline", icon: Workflow },
   { to: "/jobs", label: "Jobs", icon: ListChecks },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
