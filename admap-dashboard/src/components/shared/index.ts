@@ -30,6 +30,9 @@ export type { ExportPanelProps } from "./ExportPanel";
 export { AIPhaseSlot } from "./AIPhaseSlot";
 export type { AIPhaseSlotProps } from "./AIPhaseSlot";
 
+export { NetworkGraph } from "./NetworkGraph";
+export type { GraphNode, GraphLink, NetworkGraphProps } from "./NetworkGraph";
+
 export { ToastProvider } from "./ToastProvider";
 export { useToast } from "./toast-context";
 export type { ToastOptions, ToastVariant } from "./toast-context";

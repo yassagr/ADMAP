@@ -2,8 +2,15 @@
  * Table de données générique : colonnes typées, recherche, tri par colonne et
  * pagination. Bâtie sur les primitives `ui/table` + `ui/input` + `ui/button`.
  */
-import { useMemo, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Search } from "lucide-react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  ChevronsUpDown,
+  Search,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -40,6 +47,12 @@ export interface DataTableProps<T> {
   pageSize?: number;
   /** Message affiché quand il n'y a aucune ligne. */
   emptyMessage?: string;
+  /**
+   * Rendu du contenu déplié d'une ligne. Si fourni, chaque ligne devient
+   * cliquable et reçoit un chevron ; un clic affiche `renderExpanded(row)` sur
+   * une ligne pleine largeur. Absent ⇒ table classique inchangée.
+   */
+  renderExpanded?: (row: T) => ReactNode;
   className?: string;
 }
 
@@ -51,12 +64,25 @@ export function DataTable<T>({
   searchable = true,
   pageSize = 10,
   emptyMessage = "Aucune donnée.",
+  renderExpanded,
   className,
 }: DataTableProps<T>) {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(0);
+  const [expanded, setExpanded] = useState<ReadonlySet<T>>(() => new Set());
+
+  const expandable = Boolean(renderExpanded);
+  const toggleRow = (row: T): void => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(row)) next.delete(row);
+      else next.add(row);
+      return next;
+    });
+  };
+  const colCount = columns.length + (expandable ? 1 : 0);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return data;
@@ -122,6 +148,7 @@ export function DataTable<T>({
         <Table>
           <TableHeader>
             <TableRow>
+              {expandable && <TableHead className="w-8" />}
               {columns.map((col) => {
                 const active = sortKey === col.key;
                 return (
@@ -156,26 +183,53 @@ export function DataTable<T>({
             {paged.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={colCount}
                   className="py-8 text-center text-muted-foreground"
                 >
                   {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (
-              paged.map((row, ri) => (
-                <TableRow key={ri}>
-                  {columns.map((col) => (
-                    <TableCell key={col.key} className={col.className}>
-                      {col.render
-                        ? col.render(row)
-                        : col.accessor
-                          ? col.accessor(row)
-                          : null}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              paged.map((row, ri) => {
+                const isOpen = expandable && expanded.has(row);
+                return (
+                  <Fragment key={ri}>
+                    <TableRow
+                      className={cn(expandable && "cursor-pointer")}
+                      onClick={expandable ? () => toggleRow(row) : undefined}
+                    >
+                      {expandable && (
+                        <TableCell className="w-8 text-muted-foreground">
+                          {isOpen ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </TableCell>
+                      )}
+                      {columns.map((col) => (
+                        <TableCell key={col.key} className={col.className}>
+                          {col.render
+                            ? col.render(row)
+                            : col.accessor
+                              ? col.accessor(row)
+                              : null}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                    {isOpen && renderExpanded && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={colCount}
+                          style={{ backgroundColor: "rgba(17, 29, 53, 0.5)" }}
+                        >
+                          {renderExpanded(row)}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })
             )}
           </TableBody>
         </Table>

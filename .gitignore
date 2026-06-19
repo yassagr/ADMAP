@@ -59,3 +59,11 @@ venv.bak/
 .idea/
 .vscode/
 *.swp
+
+# --- Frontend (admap-dashboard) ---
+# La source Vite/React vit sous `src/lib/` ; ne pas la confondre avec le `lib/`
+# Python ignoré plus haut. On ré-inclut explicitement ce dossier source.
+!admap-dashboard/src/lib/
+!admap-dashboard/src/lib/**
+# Le dossier de build Vite reste ignoré.
+admap-dashboard/dist/
