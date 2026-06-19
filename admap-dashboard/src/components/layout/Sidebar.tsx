@@ -7,6 +7,7 @@ import {
   Network,
   Fingerprint,
   Workflow,
+  BrainCircuit,
   ListChecks,
   Settings,
   type LucideIcon,
@@ -32,6 +33,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { to: "/m3", label: "M3 · YARA Generator", icon: ScanLine, module: "m3" },
   { to: "/m4", label: "M4 · APT Mapper", icon: Network, module: "m4" },
   { to: "/m5", label: "M5 · Attribution", icon: Fingerprint, module: "m5" },
+  { to: "/ai", label: "IA / Modèle", icon: BrainCircuit },
   { to: "/jobs", label: "Jobs", icon: ListChecks },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
