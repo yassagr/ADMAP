@@ -2,6 +2,12 @@
 export { SeverityBadge } from "./SeverityBadge";
 export type { Severity, SeverityBadgeProps } from "./SeverityBadge";
 
+export { ModuleBadge } from "./ModuleBadge";
+export type { ModuleBadgeProps } from "./ModuleBadge";
+
+export { ReportButton } from "./ReportButton";
+export type { ReportButtonProps } from "./ReportButton";
+
 export { JobStatusBadge } from "./JobStatusBadge";
 export type { JobStatusBadgeProps } from "./JobStatusBadge";
 

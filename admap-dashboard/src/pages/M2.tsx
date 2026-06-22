@@ -11,6 +11,8 @@ import { AlertTriangle, RotateCcw } from "lucide-react";
 
 import { analyzeM2, type M2AnalyzeOptions } from "@/api/m2";
 import { useJobPolling } from "@/hooks/useJobPolling";
+import { useAnalysisRecorder } from "@/hooks/useAnalysisRecorder";
+import { summarizeM2 } from "@/lib/analysis-summary";
 import { useAdmapStore } from "@/store";
 import { fadeInUp } from "@/lib/motion";
 import { AIPhaseSlot, JobStatusBadge, JsonViewer, useToast } from "@/components/shared";
@@ -74,6 +76,11 @@ export function M2() {
   const failed = status === "failed";
   const bundle = status === "completed" ? (result as AlertBundle | null) : null;
   const offline = moduleStatus.status !== "ok";
+
+  const recordId = useAnalysisRecorder("M2", jobId, bundle, (b) => ({
+    inputName: submission?.file.name ?? b.pcap_filename,
+    summary: summarizeM2(b),
+  }));
 
   return (
     <motion.section
@@ -142,7 +149,9 @@ export function M2() {
         </Card>
       )}
 
-      {bundle && <M2ResultsView bundle={bundle} jobId={jobId!} />}
+      {bundle && (
+        <M2ResultsView bundle={bundle} jobId={jobId!} reportRecordId={recordId} />
+      )}
 
       <AIPhaseSlot
         title="M2-IA · Détection ML (Phase 2)"

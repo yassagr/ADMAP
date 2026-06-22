@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExportPanel } from "@/components/shared";
+import { ExportPanel, ReportButton } from "@/components/shared";
 import { exportM4 } from "@/api/m4";
 import { fadeInUp } from "@/lib/motion";
 import type { APTMapReport, ExportFormat } from "@/types";
@@ -23,9 +23,11 @@ import { M4TopTechniques } from "./M4TopTechniques";
 export interface M4ResultsViewProps {
   report: APTMapReport;
   jobId: string;
+  /** Identifiant de l'analyse enregistrée — active le bouton « Générer le rapport ». */
+  reportRecordId?: string | null;
 }
 
-export function M4ResultsView({ report, jobId }: M4ResultsViewProps) {
+export function M4ResultsView({ report, jobId, reportRecordId }: M4ResultsViewProps) {
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
 
   const clusters = report.cluster_bundle.clusters;
@@ -44,6 +46,10 @@ export function M4ResultsView({ report, jobId }: M4ResultsViewProps) {
       initial="hidden"
       animate="visible"
     >
+      <div className="flex justify-end">
+        <ReportButton recordId={reportRecordId} />
+      </div>
+
       <M4CampaignSummary
         report={report}
         selectedClusterId={selectedClusterId}

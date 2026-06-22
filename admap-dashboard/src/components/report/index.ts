@@ -13,3 +13,9 @@ export type { ReportSectionProps } from "./ReportSection";
 
 export { ReportFooter } from "./ReportFooter";
 export type { ReportFooterProps } from "./ReportFooter";
+
+export {
+  ModuleReportHeader,
+  ModuleReportSummary,
+  ModuleRichSection,
+} from "./ModuleReportSections";

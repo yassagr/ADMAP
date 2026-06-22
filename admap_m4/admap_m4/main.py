@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 import structlog
 import structlog.stdlib
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from admap_m4.config import get_settings
 from admap_m4.api.routes import router
 from admap_m4.worker import AsyncWorker
@@ -56,6 +56,25 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.include_router(router, prefix="/api/v1")
+
+    # Liveness/readiness exposés AUSSI à la racine (invariant #5, comme M1/M2/M3/M5).
+    # Le gateway interroge {url}/health ; les routes métier restent sous /api/v1.
+    @app.get("/health", tags=["system"])
+    async def health_root() -> dict[str, str]:
+        return {"status": "ok", "version": settings.version, "module": "M4-APTMapper"}
+
+    @app.get("/ready", tags=["system"])
+    async def ready_root(request: Request) -> dict[str, object]:
+        if not hasattr(request.app.state, "job_queue"):
+            raise HTTPException(status_code=503, detail="Queue non initialisée")
+        return {
+            "status": "ready",
+            "version": settings.version,
+            "queue_size": request.app.state.job_queue.qsize(),
+            "m2_integration": True,
+            "m3_integration": True,
+        }
+
     return app
 
 app = create_app()

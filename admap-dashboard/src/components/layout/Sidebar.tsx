@@ -9,8 +9,7 @@ import {
   Workflow,
   FileText,
   BrainCircuit,
-  ListChecks,
-  Settings,
+  History,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -36,8 +35,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { to: "/m5", label: "M5 · Attribution", icon: Fingerprint, module: "m5" },
   { to: "/report", label: "Rapport", icon: FileText },
   { to: "/ai", label: "IA / Modèle", icon: BrainCircuit },
-  { to: "/jobs", label: "Jobs", icon: ListChecks },
-  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/history", label: "Historique", icon: History },
 ];
 
 export function Sidebar() {

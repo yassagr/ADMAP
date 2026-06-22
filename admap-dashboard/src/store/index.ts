@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type {
   AlertBundle,
+  AnalysisRecord,
   APTMapReport,
   AttributionReport,
   IOCBundle,
@@ -9,6 +10,8 @@ import type {
   ModuleId,
   YaraRuleSet,
 } from "@/types";
+import { GATEWAY_URL } from "@/lib/config";
+import { HISTORY_CAP, loadHistory, persistHistory } from "./persistence";
 
 /**
  * Job suivi côté UI — vue allégée de l'`AnalysisJob` backend.
@@ -64,12 +67,18 @@ interface AdmapStore {
   activeJobs: Record<string, JobState>;
   jobResults: Record<string, unknown>;
   lastPipelineRun: PipelineRun | null;
+  /** Historique persisté de toutes les analyses (plus récent en tête). */
+  analysisHistory: AnalysisRecord[];
   settings: Settings;
 
   updateModuleStatus: (module: ModuleId, health: ModuleHealth) => void;
   upsertJob: (job: JobState) => void;
   setJobResult: (jobId: string, result: unknown) => void;
   setLastPipelineRun: (run: PipelineRun | null) => void;
+  /** Ajoute une analyse en tête, cape à 25 entrées et persiste (robuste au quota). */
+  addAnalysisRecord: (record: AnalysisRecord) => void;
+  clearHistory: () => void;
+  removeRecord: (id: string) => void;
   updateSettings: (partial: Partial<Settings>) => void;
 }
 
@@ -84,9 +93,10 @@ export const useAdmapStore = create<AdmapStore>((set) => ({
   activeJobs: {},
   jobResults: {},
   lastPipelineRun: null,
+  analysisHistory: loadHistory(),
   settings: {
     moduleUrls: {
-      gateway: "http://localhost:9000",
+      gateway: GATEWAY_URL,
     },
     animationsEnabled: true,
     autoRefresh: true,
@@ -109,6 +119,24 @@ export const useAdmapStore = create<AdmapStore>((set) => ({
     })),
 
   setLastPipelineRun: (run) => set({ lastPipelineRun: run }),
+
+  addAnalysisRecord: (record) =>
+    set((state) => {
+      const next = [record, ...state.analysisHistory].slice(0, HISTORY_CAP);
+      return { analysisHistory: persistHistory(next) };
+    }),
+
+  clearHistory: () =>
+    set(() => {
+      persistHistory([]);
+      return { analysisHistory: [] };
+    }),
+
+  removeRecord: (id) =>
+    set((state) => {
+      const next = state.analysisHistory.filter((r) => r.id !== id);
+      return { analysisHistory: persistHistory(next) };
+    }),
 
   updateSettings: (partial) =>
     set((state) => ({

@@ -63,7 +63,8 @@ export async function runFullPipeline(
  *
  * Le WS est servi hors `/api` (donc hors baseURL Axios) :
  * `ws://<gateway>/ws/jobs/{id}?module=m{n}`. `gatewayBaseUrl` provient du store
- * (`settings.moduleUrls.gateway`, ex. `http://localhost:9000`).
+ * (`settings.moduleUrls.gateway`), alimenté par la config statique `GATEWAY_URL`
+ * (`@/lib/config`, ex. `http://localhost:9000`).
  */
 export function gatewayWsUrl(
   jobId: string,

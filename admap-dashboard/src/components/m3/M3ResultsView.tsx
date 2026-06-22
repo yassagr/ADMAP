@@ -8,7 +8,7 @@ import { CheckCircle2, ScanLine, XCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExportPanel } from "@/components/shared";
+import { ExportPanel, ReportButton } from "@/components/shared";
 import { exportM3, type M3ExportFormat } from "@/api/m3";
 import { fadeInUp } from "@/lib/motion";
 import type { YaraRuleSet } from "@/types";
@@ -19,6 +19,8 @@ import { M3ScoreBars } from "./M3ScoreBars";
 export interface M3ResultsViewProps {
   ruleset: YaraRuleSet;
   jobId: string;
+  /** Identifiant de l'analyse enregistrée — active le bouton « Générer le rapport ». */
+  reportRecordId?: string | null;
 }
 
 /** Formats réellement exposés par l'API M3 (`yar` en plus du commun). */
@@ -32,7 +34,7 @@ interface StatCard {
   color: string;
 }
 
-export function M3ResultsView({ ruleset, jobId }: M3ResultsViewProps) {
+export function M3ResultsView({ ruleset, jobId, reportRecordId }: M3ResultsViewProps) {
   const cards: StatCard[] = [
     {
       key: "total",
@@ -64,6 +66,10 @@ export function M3ResultsView({ ruleset, jobId }: M3ResultsViewProps) {
       initial="hidden"
       animate="visible"
     >
+      <div className="flex justify-end">
+        <ReportButton recordId={reportRecordId} />
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
         {cards.map((card) => {
           const Icon = card.icon;

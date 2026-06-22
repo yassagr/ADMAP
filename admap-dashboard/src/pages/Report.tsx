@@ -1,21 +1,30 @@
 /**
- * Page Rapport (/report) — présente le dernier run de pipeline persisté dans le
- * store sous forme de rapport de threat intelligence formel et imprimable.
+ * Page Rapport (/report) — rend SOIT un run de pipeline complet, SOIT une seule
+ * analyse module (AnalysisRecord), sous forme de rapport de threat intelligence
+ * formel et imprimable.
  *
- * Lecture seule depuis `lastPipelineRun` : en-tête, résumé exécutif, verdict M5
- * mis en évidence, puis sections statiques M4/M2/M1/M3 (tableaux imprimables,
- * pas de graphes interactifs). Le bouton « Imprimer / Exporter en PDF » déclenche
- * l'impression navigateur ; la feuille `@media print` (index.css) masque la
- * coquille et passe le document en noir sur blanc paginé. Aucune dépendance ajoutée.
+ * Sélection de la source :
+ *  - `location.state.recordId` présent → analyse de l'historique (module isolé
+ *    = sa section mise en évidence ; pipeline = multi-sections).
+ *  - sinon → `lastPipelineRun` du store (comportement historique du Lot 6).
+ *
+ * Lecture seule. Le bouton « Imprimer / Exporter en PDF » déclenche l'impression
+ * navigateur ; la feuille `@media print` (index.css) masque la coquille et passe
+ * le document en noir sur blanc paginé. Aucune dépendance ajoutée.
  */
-import { Link } from "react-router-dom";
+import type { ReactNode } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { FileWarning, Printer } from "lucide-react";
 
 import { useAdmapStore } from "@/store";
+import type { PipelineRunMeta, PipelineRunResults } from "@/store";
 import { Button } from "@/components/ui/button";
 import { fadeInUp } from "@/lib/motion";
 import {
+  ModuleReportHeader,
+  ModuleReportSummary,
+  ModuleRichSection,
   ReportFooter,
   ReportHeader,
   ReportSection,
@@ -24,6 +33,7 @@ import {
 } from "@/components/report";
 import type {
   AlertBundle,
+  AnalysisRecord,
   APTMapReport,
   IOCBundle,
   YaraRuleSet,
@@ -304,28 +314,14 @@ function M3Section({ ruleset }: { ruleset: YaraRuleSet }) {
   );
 }
 
-export function Report() {
-  const run = useAdmapStore((s) => s.lastPipelineRun);
-
-  if (!run) {
-    return (
-      <section className="flex flex-col items-center justify-center gap-4 py-24 text-center">
-        <FileWarning className="h-12 w-12 text-muted-foreground" />
-        <div>
-          <h1 className="text-xl font-bold text-white">Aucune analyse à exporter</h1>
-          <p className="mt-1 text-slate-400">
-            Lancez d'abord un pipeline pour générer un rapport.
-          </p>
-        </div>
-        <Button asChild>
-          <Link to="/pipeline">Aller au pipeline</Link>
-        </Button>
-      </section>
-    );
-  }
-
-  const { results, meta, runId, createdAt } = run;
-
+/** Coquille commune : en-tête écran (masqué à l'impression) + zone imprimable. */
+function ReportShell({
+  subtitle,
+  children,
+}: {
+  subtitle: string;
+  children: ReactNode;
+}) {
   return (
     <motion.section
       className="flex flex-col gap-6"
@@ -336,26 +332,120 @@ export function Report() {
       <div className="no-print flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Rapport</h1>
-          <p className="mt-1 text-slate-400">
-            Dernier run de pipeline, prêt pour impression ou export PDF.
-          </p>
+          <p className="mt-1 text-slate-400">{subtitle}</p>
         </div>
         <Button onClick={() => window.print()}>
           <Printer className="h-4 w-4" />
           Imprimer / Exporter en PDF
         </Button>
       </div>
-
-      <div className="print-area flex flex-col gap-6">
-        <ReportHeader meta={meta} runId={runId} createdAt={createdAt} />
-        <ReportSummary results={results} />
-        {results.m5 && <ReportVerdict report={results.m5} />}
-        {results.m4 && <M4Section report={results.m4} />}
-        {results.m2 && <M2Section bundle={results.m2} />}
-        {results.m1 && <M1Section bundle={results.m1} />}
-        {results.m3 && <M3Section ruleset={results.m3} />}
-        <ReportFooter generatedAt={createdAt} />
-      </div>
+      <div className="print-area flex flex-col gap-6">{children}</div>
     </motion.section>
   );
+}
+
+/** Rapport d'un run de pipeline complet (multi-sections). */
+function PipelineReport({
+  runId,
+  createdAt,
+  meta,
+  results,
+}: {
+  runId: string;
+  createdAt: string;
+  meta: PipelineRunMeta;
+  results: PipelineRunResults;
+}) {
+  return (
+    <ReportShell subtitle="Pipeline complet, prêt pour impression ou export PDF.">
+      <ReportHeader meta={meta} runId={runId} createdAt={createdAt} />
+      <ReportSummary results={results} />
+      {results.m5 && <ReportVerdict report={results.m5} />}
+      {results.m4 && <M4Section report={results.m4} />}
+      {results.m2 && <M2Section bundle={results.m2} />}
+      {results.m1 && <M1Section bundle={results.m1} />}
+      {results.m3 && <M3Section ruleset={results.m3} />}
+      <ReportFooter generatedAt={createdAt} />
+    </ReportShell>
+  );
+}
+
+/**
+ * Rapport d'une analyse module isolée : en-tête module + résumé exécutif +
+ * UNE section riche = la sortie COMPLÈTE du module (cf. `ModuleReportSections`).
+ * Aucune section résiduelle du chemin pipeline.
+ */
+function ModuleReport({ record }: { record: AnalysisRecord }) {
+  return (
+    <ReportShell subtitle="Analyse module, prête pour impression ou export PDF.">
+      <ModuleReportHeader record={record} />
+      <ModuleReportSummary record={record} />
+      <ModuleRichSection record={record} />
+      <ReportFooter generatedAt={record.createdAt} />
+    </ReportShell>
+  );
+}
+
+function EmptyState() {
+  return (
+    <section className="flex flex-col items-center justify-center gap-4 py-24 text-center">
+      <FileWarning className="h-12 w-12 text-muted-foreground" />
+      <div>
+        <h1 className="text-xl font-bold text-white">Aucune analyse à exporter</h1>
+        <p className="mt-1 text-slate-400">
+          Lancez une analyse (module ou pipeline) ou ouvrez un rapport depuis
+          l'historique.
+        </p>
+      </div>
+      <Button asChild>
+        <Link to="/pipeline">Aller au pipeline</Link>
+      </Button>
+    </section>
+  );
+}
+
+export function Report() {
+  const location = useLocation();
+  const recordId =
+    (location.state as { recordId?: string } | null)?.recordId ?? null;
+  const history = useAdmapStore((s) => s.analysisHistory);
+  const lastRun = useAdmapStore((s) => s.lastPipelineRun);
+
+  const record = recordId
+    ? (history.find((r) => r.id === recordId) ?? null)
+    : null;
+
+  // Analyse module isolée → section mise en évidence.
+  if (record && record.module !== "PIPELINE") {
+    return <ModuleReport record={record} />;
+  }
+
+  // Pipeline : depuis une entrée d'historique PIPELINE, sinon le dernier run.
+  if (record && record.module === "PIPELINE") {
+    return (
+      <PipelineReport
+        runId={record.id}
+        createdAt={record.createdAt}
+        meta={{
+          pcapName: record.inputName,
+          corpusMalwareCount: 0,
+          corpusBenignCount: 0,
+        }}
+        results={record.result as PipelineRunResults}
+      />
+    );
+  }
+
+  if (lastRun) {
+    return (
+      <PipelineReport
+        runId={lastRun.runId}
+        createdAt={lastRun.createdAt}
+        meta={lastRun.meta}
+        results={lastRun.results}
+      />
+    );
+  }
+
+  return <EmptyState />;
 }

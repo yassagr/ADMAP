@@ -13,6 +13,8 @@ import { AlertTriangle, RotateCcw } from "lucide-react";
 
 import { analyzeM5, type M5AnalyzeExtras } from "@/api/m5";
 import { useJobPolling } from "@/hooks/useJobPolling";
+import { useAnalysisRecorder } from "@/hooks/useAnalysisRecorder";
+import { summarizeM5 } from "@/lib/analysis-summary";
 import { useAdmapStore } from "@/store";
 import { fadeInUp } from "@/lib/motion";
 import { AIPhaseSlot, JobStatusBadge, JsonViewer, useToast } from "@/components/shared";
@@ -75,6 +77,11 @@ export function M5() {
   const failed = status === "failed";
   const report = status === "completed" ? (result as AttributionReport | null) : null;
   const offline = moduleStatus.status !== "ok";
+
+  const recordId = useAnalysisRecorder("M5", jobId, report, (r) => ({
+    inputName: submission?.file.name ?? r.source_report_id,
+    summary: summarizeM5(r),
+  }));
 
   return (
     <motion.section
@@ -147,7 +154,9 @@ export function M5() {
         </Card>
       )}
 
-      {report && <M5ResultsView report={report} jobId={jobId!} />}
+      {report && (
+        <M5ResultsView report={report} jobId={jobId!} reportRecordId={recordId} />
+      )}
 
       <AIPhaseSlot
         title="M5-IA · Attribution XGBoost (cœur IA d'ADMAP)"

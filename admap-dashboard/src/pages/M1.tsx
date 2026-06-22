@@ -12,6 +12,8 @@ import { AlertTriangle, RotateCcw } from "lucide-react";
 
 import { analyzeM1, type M1AnalyzeOptions } from "@/api/m1";
 import { useJobPolling } from "@/hooks/useJobPolling";
+import { useAnalysisRecorder } from "@/hooks/useAnalysisRecorder";
+import { summarizeM1 } from "@/lib/analysis-summary";
 import { useAdmapStore } from "@/store";
 import { fadeInUp } from "@/lib/motion";
 import { JobStatusBadge, JsonViewer, useToast } from "@/components/shared";
@@ -74,6 +76,11 @@ export function M1() {
   const failed = status === "failed";
   const bundle = status === "completed" ? (result as IOCBundle | null) : null;
   const offline = moduleStatus.status !== "ok";
+
+  const recordId = useAnalysisRecorder("M1", jobId, bundle, (b) => ({
+    inputName: submission?.file.name ?? b.metadata.filename,
+    summary: summarizeM1(b),
+  }));
 
   return (
     <motion.section
@@ -144,7 +151,9 @@ export function M1() {
         </Card>
       )}
 
-      {bundle && <M1ResultsView bundle={bundle} jobId={jobId!} />}
+      {bundle && (
+        <M1ResultsView bundle={bundle} jobId={jobId!} reportRecordId={recordId} />
+      )}
     </motion.section>
   );
 }

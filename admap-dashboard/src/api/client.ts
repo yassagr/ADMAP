@@ -1,7 +1,13 @@
 import axios from 'axios';
+import { GATEWAY_URL } from '@/lib/config';
+
+/** Construit la baseURL Axios (`<racine>/api`) à partir de l'URL racine du Gateway. */
+function apiBaseUrl(rootUrl: string): string {
+  return `${rootUrl.replace(/\/$/, '')}/api`;
+}
 
 export const apiClient = axios.create({
-  baseURL: 'http://localhost:9000/api',
+  baseURL: apiBaseUrl(GATEWAY_URL),
   timeout: 30000,
 });
 

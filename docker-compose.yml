@@ -1,0 +1,89 @@
+# ADMAP — orchestration end-to-end (1 commande : `docker compose up --build`).
+#
+# 6 services sur UN réseau bridge user-defined partagé (admap_net) -> résolution
+# DNS inter-conteneurs par NOM DE SERVICE (admap-m1 .. admap-m5, admap-gateway).
+# Le gateway joint les modules via M1_URL..M5_URL (lues par pydantic-settings).
+# Les ports 8000-8004 + 9000 sont aussi publiés sur l'hôte (test direct des /health).
+# Pas de clé `version:` (obsolète). Rien n'est supprimé : les composes mono-module
+# (admap_m3/m4/m5/docker-compose.yml) restent utilisables indépendamment.
+
+services:
+  admap-m1:
+    build:
+      context: ./admap_m1
+    image: admap-m1
+    ports:
+      - "8000:8000"
+    networks:
+      - admap_net
+    restart: unless-stopped
+
+  admap-m2:
+    build:
+      context: ./admap_m2
+    image: admap-m2
+    ports:
+      - "8001:8001"
+    networks:
+      - admap_net
+    restart: unless-stopped
+
+  admap-m3:
+    build:
+      context: ./admap_m3
+    image: admap-m3
+    ports:
+      - "8002:8002"
+    environment:
+      ADMAP_M3_CORPUS_DIR: /corpus
+      ADMAP_M3_OUTPUT_DIR: /output
+      ADMAP_M3_M1_BASE_URL: http://admap-m1:8000
+    networks:
+      - admap_net
+    restart: unless-stopped
+
+  admap-m4:
+    build:
+      context: ./admap_m4
+    image: admap-m4
+    ports:
+      - "8003:8003"
+    networks:
+      - admap_net
+    restart: unless-stopped
+
+  admap-m5:
+    build:
+      context: ./admap_m5
+    image: admap-m5
+    ports:
+      - "8004:8004"
+    networks:
+      - admap_net
+    restart: unless-stopped
+
+  admap-gateway:
+    build:
+      context: ./admap_gateway
+    image: admap-gateway
+    ports:
+      - "9000:9000"
+    environment:
+      M1_URL: http://admap-m1:8000
+      M2_URL: http://admap-m2:8001
+      M3_URL: http://admap-m3:8002
+      M4_URL: http://admap-m4:8003
+      M5_URL: http://admap-m5:8004
+    depends_on:
+      - admap-m1
+      - admap-m2
+      - admap-m3
+      - admap-m4
+      - admap-m5
+    networks:
+      - admap_net
+    restart: unless-stopped
+
+networks:
+  admap_net:
+    driver: bridge

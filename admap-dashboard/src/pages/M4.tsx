@@ -12,6 +12,8 @@ import { AlertTriangle, RotateCcw } from "lucide-react";
 
 import { analyzeM4, type M4AnalyzeExtras } from "@/api/m4";
 import { useJobPolling } from "@/hooks/useJobPolling";
+import { useAnalysisRecorder } from "@/hooks/useAnalysisRecorder";
+import { summarizeM4 } from "@/lib/analysis-summary";
 import { useAdmapStore } from "@/store";
 import { fadeInUp } from "@/lib/motion";
 import { AIPhaseSlot, JobStatusBadge, JsonViewer, useToast } from "@/components/shared";
@@ -74,6 +76,11 @@ export function M4() {
   const failed = status === "failed";
   const report = status === "completed" ? (result as APTMapReport | null) : null;
   const offline = moduleStatus.status !== "ok";
+
+  const recordId = useAnalysisRecorder("M4", jobId, report, (r) => ({
+    inputName: submission?.file.name ?? r.source_bundle_id,
+    summary: summarizeM4(r),
+  }));
 
   return (
     <motion.section
@@ -146,7 +153,9 @@ export function M4() {
         </Card>
       )}
 
-      {report && <M4ResultsView report={report} jobId={jobId!} />}
+      {report && (
+        <M4ResultsView report={report} jobId={jobId!} reportRecordId={recordId} />
+      )}
 
       <AIPhaseSlot
         title="M4-IA · Clustering DBSCAN (Phase 2)"

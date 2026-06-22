@@ -12,6 +12,7 @@ import { AlertTriangle, RotateCcw } from "lucide-react";
 
 import { useAdmapStore } from "@/store";
 import { usePipeline, type PipelineInputs } from "@/hooks/usePipeline";
+import { summarizePipeline } from "@/lib/analysis-summary";
 import { fadeInUp } from "@/lib/motion";
 import { useToast } from "@/components/shared";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ export function Pipeline() {
   const { toast } = useToast();
   const moduleStatus = useAdmapStore((s) => s.moduleStatus);
   const setLastPipelineRun = useAdmapStore((s) => s.setLastPipelineRun);
+  const addAnalysisRecord = useAdmapStore((s) => s.addAnalysisRecord);
   const { steps, results, isRunning, error, run, reset } = usePipeline();
 
   const [lastInputs, setLastInputs] = useState<PipelineInputs | null>(null);
@@ -57,25 +59,36 @@ export function Pipeline() {
         });
       }
 
-      // Persiste le dernier run (même partiel) pour la page Rapport (/report).
+      // Persiste le dernier run (même partiel) pour la page Rapport (/report)
+      // et l'ajoute à l'historique agrégé (Overview / History).
       const hasResults =
         results.m1 || results.m2 || results.m3 || results.m4 || results.m5;
       if (hasResults && lastInputs) {
+        const createdAt = new Date().toISOString();
+        const snapshot = { ...results };
         setLastPipelineRun({
           runId: crypto.randomUUID(),
-          createdAt: new Date().toISOString(),
+          createdAt,
           meta: {
             pcapName: lastInputs.pcap.name,
             suspectFileName: lastInputs.suspectFile?.name,
             corpusMalwareCount: lastInputs.corpusMalware?.length ?? 0,
             corpusBenignCount: lastInputs.corpusBenign?.length ?? 0,
           },
-          results: { ...results },
+          results: snapshot,
+        });
+        addAnalysisRecord({
+          id: crypto.randomUUID(),
+          module: "PIPELINE",
+          createdAt,
+          inputName: lastInputs.pcap.name,
+          summary: summarizePipeline(snapshot),
+          result: snapshot,
         });
       }
     }
     prevRunningRef.current = isRunning;
-  }, [isRunning, error, results, toast, lastInputs, setLastPipelineRun]);
+  }, [isRunning, error, results, toast, lastInputs, setLastPipelineRun, addAnalysisRecord]);
 
   const handleSubmit = (inputs: PipelineInputs): void => {
     setLastInputs(inputs);

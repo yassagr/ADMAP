@@ -6,7 +6,7 @@
 import { motion } from "framer-motion";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExportPanel } from "@/components/shared";
+import { ExportPanel, ReportButton } from "@/components/shared";
 import { exportM1, type M1ExportFormat } from "@/api/m1";
 import { fadeInUp } from "@/lib/motion";
 import type { IOCBundle } from "@/types";
@@ -19,6 +19,8 @@ import { M1TypeDonut } from "./M1TypeDonut";
 export interface M1ResultsViewProps {
   bundle: IOCBundle;
   jobId: string;
+  /** Identifiant de l'analyse enregistrée — active le bouton « Générer le rapport ». */
+  reportRecordId?: string | null;
 }
 
 /** Formats CTI réellement exposés par l'API M1 (cf. `M1ExportFormat`). */
@@ -29,7 +31,7 @@ const M1_FORMATS: readonly M1ExportFormat[] = [
   "cytomic",
 ];
 
-export function M1ResultsView({ bundle, jobId }: M1ResultsViewProps) {
+export function M1ResultsView({ bundle, jobId, reportRecordId }: M1ResultsViewProps) {
   return (
     <motion.div
       className="flex flex-col gap-6"
@@ -37,6 +39,10 @@ export function M1ResultsView({ bundle, jobId }: M1ResultsViewProps) {
       initial="hidden"
       animate="visible"
     >
+      <div className="flex justify-end">
+        <ReportButton recordId={reportRecordId} />
+      </div>
+
       <M1Summary bundle={bundle} />
 
       <div className="grid gap-6 lg:grid-cols-2">

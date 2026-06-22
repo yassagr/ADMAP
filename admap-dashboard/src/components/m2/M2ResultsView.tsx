@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExportPanel } from "@/components/shared";
+import { ExportPanel, ReportButton } from "@/components/shared";
 import { exportM2 } from "@/api/m2";
 import { fadeInUp } from "@/lib/motion";
 import type { AlertBundle, AlertSeverity, ExportFormat } from "@/types";
@@ -21,9 +21,11 @@ import { M2TypeDonut } from "./M2TypeDonut";
 export interface M2ResultsViewProps {
   bundle: AlertBundle;
   jobId: string;
+  /** Identifiant de l'analyse enregistrée — active le bouton « Générer le rapport ». */
+  reportRecordId?: string | null;
 }
 
-export function M2ResultsView({ bundle, jobId }: M2ResultsViewProps) {
+export function M2ResultsView({ bundle, jobId, reportRecordId }: M2ResultsViewProps) {
   const [severity, setSeverity] = useState<AlertSeverity | null>(null);
   const [ip, setIp] = useState<string | null>(null);
 
@@ -42,6 +44,10 @@ export function M2ResultsView({ bundle, jobId }: M2ResultsViewProps) {
       initial="hidden"
       animate="visible"
     >
+      <div className="flex justify-end">
+        <ReportButton recordId={reportRecordId} />
+      </div>
+
       <M2AlertSummary
         bundle={bundle}
         activeSeverity={severity}

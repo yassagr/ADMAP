@@ -81,7 +81,7 @@ def setup_logging(log_level: str = "INFO", log_format: str = "json") -> None:
         ],
         wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
 
@@ -94,7 +94,7 @@ def setup_logging(log_level: str = "INFO", log_format: str = "json") -> None:
         foreign_pre_chain=shared_processors,
     )
 
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()

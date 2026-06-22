@@ -10,8 +10,7 @@ import { M5 } from "@/pages/M5";
 import { Pipeline } from "@/pages/Pipeline";
 import { Report } from "@/pages/Report";
 import { AI } from "@/pages/AI";
-import { Jobs } from "@/pages/Jobs";
-import { Settings } from "@/pages/Settings";
+import { History } from "@/pages/History";
 
 function App() {
   return (
@@ -27,8 +26,7 @@ function App() {
           <Route path="pipeline" element={<Pipeline />} />
           <Route path="report" element={<Report />} />
           <Route path="ai" element={<AI />} />
-          <Route path="jobs" element={<Jobs />} />
-          <Route path="settings" element={<Settings />} />
+          <Route path="history" element={<History />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

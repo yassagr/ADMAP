@@ -12,6 +12,8 @@ import { AlertTriangle, RotateCcw } from "lucide-react";
 
 import { generateM3 } from "@/api/m3";
 import { useJobPolling } from "@/hooks/useJobPolling";
+import { useAnalysisRecorder } from "@/hooks/useAnalysisRecorder";
+import { summarizeM3 } from "@/lib/analysis-summary";
 import { useAdmapStore } from "@/store";
 import { fadeInUp } from "@/lib/motion";
 import { JobStatusBadge, JsonViewer, useToast } from "@/components/shared";
@@ -81,6 +83,13 @@ export function M3() {
   const failed = status === "failed";
   const ruleset = status === "completed" ? (result as YaraRuleSet | null) : null;
   const offline = moduleStatus.status !== "ok";
+
+  const recordId = useAnalysisRecorder("M3", jobId, ruleset, (rs) => ({
+    inputName: submission
+      ? `${submission.malwareFiles.length} malveillant(s) / ${submission.benignFiles.length} bénin(s)`
+      : `Corpus ${rs.corpus_id}`,
+    summary: summarizeM3(rs),
+  }));
 
   return (
     <motion.section
@@ -153,7 +162,9 @@ export function M3() {
         </Card>
       )}
 
-      {ruleset && <M3ResultsView ruleset={ruleset} jobId={jobId!} />}
+      {ruleset && (
+        <M3ResultsView ruleset={ruleset} jobId={jobId!} reportRecordId={recordId} />
+      )}
     </motion.section>
   );
 }

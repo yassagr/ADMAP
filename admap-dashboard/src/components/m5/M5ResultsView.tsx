@@ -6,7 +6,7 @@
 import { motion } from "framer-motion";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExportPanel } from "@/components/shared";
+import { ExportPanel, ReportButton } from "@/components/shared";
 import { exportM5 } from "@/api/m5";
 import { fadeInUp } from "@/lib/motion";
 import type { AttributionReport, ExportFormat } from "@/types";
@@ -17,9 +17,11 @@ import { M5Verdict } from "./M5Verdict";
 export interface M5ResultsViewProps {
   report: AttributionReport;
   jobId: string;
+  /** Identifiant de l'analyse enregistrée — active le bouton « Générer le rapport ». */
+  reportRecordId?: string | null;
 }
 
-export function M5ResultsView({ report, jobId }: M5ResultsViewProps) {
+export function M5ResultsView({ report, jobId, reportRecordId }: M5ResultsViewProps) {
   return (
     <motion.div
       className="flex flex-col gap-6"
@@ -27,6 +29,10 @@ export function M5ResultsView({ report, jobId }: M5ResultsViewProps) {
       initial="hidden"
       animate="visible"
     >
+      <div className="flex justify-end">
+        <ReportButton recordId={reportRecordId} />
+      </div>
+
       <M5Verdict report={report} />
 
       <Card>
